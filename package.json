@@ -5,10 +5,20 @@
   "main": "index.js",
   "scripts": {
     "build": "turbo run build",
+    "dev": "turbo run start:dev --parallel",
+    "db:migrate": "dotenv -e apps/lireons-main/.env -e .env -- pnpm --filter @lireons/database exec prisma migrate dev",
+    "docker:academy": "docker build -f Dockerfile.academy-api -t lireons-academy-api .",
+    "docker:main": "docker build -f Dockerfile.lireons-main -t lireons-main .",
+    "docker:code-runner": "docker build -f Dockerfile.code-runner-worker -t lireons-code-runner-worker .",
+    "docker:control-plane": "docker build -f Dockerfile.control-plane-api -t lireons-control-plane-api .",
+    "docker:media-worker": "docker build -f Dockerfile.media-worker -t lireons-media-worker .",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.28.2"
+  "packageManager": "pnpm@10.30.3",
+  "devDependencies": {
+    "dotenv-cli": "^7.4.2"
+  }
 }

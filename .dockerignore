@@ -1,0 +1,38 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+dist
+out
+.turbo
+coverage
+*.tsbuildinfo
+
+# Git
+.git
+.gitignore
+
+# IDE & OS
+.idea
+.vscode
+*.swp
+.DS_Store
+
+# Env (inject at runtime)
+.env
+.env.*
+!.env.example
+
+# Logs & temp
+*.log
+tmp
+temp
+
+# Test
+*.spec.ts
+*.test.ts
+test
+__tests__
+jest.config.*
+.eslintrc*

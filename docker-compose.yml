@@ -1,0 +1,94 @@
+name: lireons-backend
+
+x-common-env: &common-env
+  NODE_ENV: production
+  DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to your Neon connection string}
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  REDIS_URL: redis://redis:6379
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  lireons-main:
+    image: lireons-lireons-main:latest
+    environment:
+      <<: *common-env
+      LIREONS_MAIN_PORT: 4000
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      JWT_SECRET: ${JWT_SECRET:-change-this-jwt-secret}
+      OTP_SECRET: ${OTP_SECRET:-change-this-otp-secret}
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    restart: unless-stopped
+
+  control-plane-api:
+    image: lireons-control-plane-api:latest
+    environment:
+      <<: *common-env
+      CONTROL_PLANE_PORT: 4001
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "4001:4001"
+    restart: unless-stopped
+
+  academy-api:
+    image: lireons-academy-api:latest
+    environment:
+      <<: *common-env
+      ACADEMY_API_PORT: 4002
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "4002:4002"
+    restart: unless-stopped
+
+  media-worker:
+    image: lireons-media-worker:latest
+    environment:
+      <<: *common-env
+      PORT: 3002
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-ap-south-1}
+      S3_BUCKET: ${S3_BUCKET:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "3002:3002"
+    restart: unless-stopped
+
+  code-runner-worker:
+    image: lireons-code-runner-worker:latest
+    environment:
+      <<: *common-env
+      PORT: 3003
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "3003:3003"
+    restart: unless-stopped
+
+volumes:
+  redis_data:

@@ -3,6 +3,7 @@ import { CoreSaasModule } from './core-saas/core-saas.module';
 import { DatabaseModule } from '@lireons/database';
 import { CacheModule } from '@lireons/cache';
 import { QueueModule } from '@lireons/queue';
+import { SalesLeadModule } from './sales_lead/sales_lead.module';
 
 @Module({
   imports: [
@@ -10,6 +11,7 @@ import { QueueModule } from '@lireons/queue';
     DatabaseModule,
     CacheModule,
     QueueModule,
+    SalesLeadModule,
   ],
   controllers: [],
   providers: [],

@@ -1,0 +1,53 @@
+# =============================================================================
+# Lireons Code Runner Worker - AWS ECS/Fargate deployment
+# Build: docker build -f Dockerfile.code-runner-worker -t lireons-code-runner-worker .
+# =============================================================================
+
+ARG NODE_VERSION=20-alpine
+FROM node:${NODE_VERSION} AS base
+RUN apk add --no-cache openssl
+RUN corepack enable && corepack prepare pnpm@10.30.3 --activate
+ENV PNPM_HOME=/root/.local/share/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+WORKDIR /app
+
+# -----------------------------------------------------------------------------
+# Stage 1: Install deps
+# -----------------------------------------------------------------------------
+FROM base AS deps
+COPY package.json pnpm-workspace.yaml ./
+COPY packages/database/package.json ./packages/database/
+COPY apps/code-runner-worker/package.json ./apps/code-runner-worker/
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# -----------------------------------------------------------------------------
+# Stage 2: Build
+# -----------------------------------------------------------------------------
+FROM base AS builder
+RUN pnpm add -g turbo
+COPY . .
+RUN pnpm install --frozen-lockfile --ignore-scripts
+COPY packages/database/prisma ./packages/database/prisma
+RUN pnpm --filter @lireons/database run prisma:generate
+RUN turbo run build --filter=@lireons/code-runner-worker
+
+# -----------------------------------------------------------------------------
+# Stage 3: Production runner
+# -----------------------------------------------------------------------------
+FROM base AS runner
+ENV NODE_ENV=production
+
+RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001 -G nodejs
+
+RUN mkdir -p /app/apps/code-runner-worker /app/packages /app/node_modules
+WORKDIR /app
+
+COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nestjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nestjs:nodejs /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=builder --chown=nestjs:nodejs /app/apps/code-runner-worker ./apps/code-runner-worker
+COPY --from=builder --chown=nestjs:nodejs /app/packages ./packages
+
+USER nestjs
+
+CMD ["node", "apps/code-runner-worker/dist/main.js"]
