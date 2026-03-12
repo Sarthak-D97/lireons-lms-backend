@@ -1,5 +1,6 @@
 import { Module, Global } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from './generated/prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 export const PRISMA_SERVICE = 'PRISMA_SERVICE';
 
@@ -9,7 +10,14 @@ export const PRISMA_SERVICE = 'PRISMA_SERVICE';
     {
       provide: PRISMA_SERVICE,
       useFactory: () => {
-        return new PrismaClient();
+        const connectionString = process.env.DATABASE_URL;
+
+        if (!connectionString) {
+          throw new Error('DATABASE_URL is required to initialize PrismaClient');
+        }
+
+        const adapter = new PrismaPg({ connectionString });
+        return new PrismaClient({ adapter });
       },
     },
   ],

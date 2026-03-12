@@ -4,30 +4,32 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "check-types": "tsc --noEmit"
   },
   "dependencies": {
     "@lireons/database": "workspace:*",
-    "@nestjs/common": "^10.0.0",
-    "@nestjs/config": "^3.0.0",
-    "@nestjs/core": "^10.0.0",
-    "@nestjs/jwt": "^10.0.0",
-    "@nestjs/passport": "^10.0.0",
-    "bcrypt": "^5.1.1",
-    "class-transformer": "^0.5.1",
-    "class-validator": "^0.14.1",
-    "nodemailer": "^6.9.0",
-    "passport": "^0.7.0",
-    "passport-jwt": "^4.0.1",
-    "passport-local": "^1.0.0",
-    "reflect-metadata": "^0.1.13",
-    "rxjs": "^7.8.1"
+    "@nestjs/common": "catalog:nest10",
+    "@nestjs/config": "catalog:nest10",
+    "@nestjs/core": "catalog:nest10",
+    "@nestjs/jwt": "catalog:",
+    "@nestjs/passport": "catalog:",
+    "bcrypt": "catalog:",
+    "class-transformer": "catalog:",
+    "class-validator": "catalog:",
+    "nodemailer": "catalog:",
+    "passport": "catalog:",
+    "passport-jwt": "catalog:",
+    "passport-local": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:"
   },
   "devDependencies": {
-    "@types/bcrypt": "^5.0.2",
-    "@types/nodemailer": "^6.4.0",
-    "@types/passport-jwt": "^4.0.1",
-    "@types/passport-local": "^1.0.38",
-    "typescript": "^5.0.0"
+    "@lireons/typescript-config": "workspace:*",
+    "@types/bcrypt": "catalog:",
+    "@types/nodemailer": "catalog:",
+    "@types/passport-jwt": "catalog:",
+    "@types/passport-local": "catalog:",
+    "typescript": "catalog:"
   }
 }

@@ -1,12 +1,13 @@
 // packages/database/prisma/schema.prisma
 
 generator client {
-  provider = "prisma-client-js"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // ============================================================================
@@ -246,6 +247,8 @@ model User {
   provider     String   @default("credentials")
   otp          String?
   otpExpiry    DateTime? @map("otp_expiry")
+  refreshTokenHash   String?   @map("refresh_token_hash")
+  refreshTokenExpiry DateTime? @map("refresh_token_expiry")
   orgType      String?  @map("org_type")
   leadSource   String?  @map("lead_source")
   githubId     String?

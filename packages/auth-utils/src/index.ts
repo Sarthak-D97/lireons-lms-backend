@@ -7,9 +7,13 @@ export { JwtAuthGuard } from './auth/gaurds/auth/auth.guard';
 export { RolesGuard } from './auth/gaurds/roles/roles.guard';
 
 // DTOs
-export { SignupDto } from './auth/dto/signup.dto';
-export { LoginDto } from './auth/dto/login.dto';
-export { SendOtpDto } from './auth/dto/send-otp.dto';
-export { VerifyOtpDto } from './auth/dto/verify-otp.dto';
-export { ResetPasswordDto } from './auth/dto/reset-password.dto';
-export { OAuthCallbackDto } from './auth/dto/oauth-callback.dto';
+// export { SignupDto } from './auth/dto/signup.dto';
+// export { LoginDto } from './auth/dto/login.dto';
+// export { SendOtpDto } from './auth/dto/send-otp.dto';
+// export { VerifyOtpDto } from './auth/dto/verify-otp.dto';
+// export { ResetPasswordDto } from './auth/dto/reset-password.dto';
+// export { OAuthCallbackDto } from './auth/dto/oauth-callback.dto';
+// export { RefreshTokenDto } from './auth/dto/refresh-token.dto';
+
+// Re-export all DTOs from the index file in the dto directory
+export * from './auth/dto';

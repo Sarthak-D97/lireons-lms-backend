@@ -10,12 +10,11 @@ import configuration from './config/configuration';
       isGlobal: true,
       load: [configuration],
       envFilePath: [
+        join(process.cwd(), '.env.local'),
         join(process.cwd(), '.env'),
-        join(process.cwd(), '..', '..', '.env'), // monorepo root when running from apps/lireons-main
       ],
     }),
     AuthModule,
   ],
 })
 export class AppModule { }
-
