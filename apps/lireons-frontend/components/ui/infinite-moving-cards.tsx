@@ -22,54 +22,47 @@ export const InfiniteMovingCards = ({
 }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const scrollerRef = React.useRef<HTMLUListElement>(null);
+  const clonedRef = React.useRef(false);
+
+  const applyAnimationConfig = React.useCallback(() => {
+    if (!containerRef.current) return;
+
+    containerRef.current.style.setProperty(
+      "--animation-direction",
+      direction === "left" ? "forwards" : "reverse",
+    );
+
+    if (speed === "fast") {
+      containerRef.current.style.setProperty("--animation-duration", "30s");
+      return;
+    }
+
+    if (speed === "normal") {
+      containerRef.current.style.setProperty("--animation-duration", "40s");
+      return;
+    }
+
+    containerRef.current.style.setProperty("--animation-duration", "80s");
+  }, [direction, speed]);
 
   useEffect(() => {
-    addAnimation();
-  }, [addAnimation]);
-  const [start, setStart] = useState(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  function addAnimation() {
-    if (containerRef.current && scrollerRef.current) {
-      const scrollerContent = Array.from(scrollerRef.current.children);
+    if (!containerRef.current || !scrollerRef.current) return;
 
+    if (!clonedRef.current) {
+      const scrollerContent = Array.from(scrollerRef.current.children);
       scrollerContent.forEach((item) => {
         const duplicatedItem = item.cloneNode(true);
-        if (scrollerRef.current) {
-          scrollerRef.current.appendChild(duplicatedItem);
-        }
+        scrollerRef.current?.appendChild(duplicatedItem);
       });
+      clonedRef.current = true;
+    }
 
-      getDirection();
-      getSpeed();
-      setStart(true);
-    }
-  }
-  const getDirection = () => {
-    if (containerRef.current) {
-      if (direction === "left") {
-        containerRef.current.style.setProperty(
-          "--animation-direction",
-          "forwards",
-        );
-      } else {
-        containerRef.current.style.setProperty(
-          "--animation-direction",
-          "reverse",
-        );
-      }
-    }
-  };
-  const getSpeed = () => {
-    if (containerRef.current) {
-      if (speed === "fast") {
-        containerRef.current.style.setProperty("--animation-duration", "30s");
-      } else if (speed === "normal") {
-        containerRef.current.style.setProperty("--animation-duration", "40s");
-      } else {
-        containerRef.current.style.setProperty("--animation-duration", "80s");
-      }
-    }
-  };
+    applyAnimationConfig();
+    setStart(true);
+  }, [applyAnimationConfig]);
+
+  const [start, setStart] = useState(false);
+
   return (
     <div
       ref={containerRef}

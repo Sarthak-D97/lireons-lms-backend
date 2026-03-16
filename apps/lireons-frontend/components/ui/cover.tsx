@@ -2,7 +2,6 @@
 import React, { useId, useState, useCallback } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/utils";
-import { SparklesCore } from "./sparkles";
 
 export const Cover = ({
     children,
@@ -70,22 +69,8 @@ export const Cover = ({
                             }}
                             className="w-[200%] h-full flex"
                         >
-                            <SparklesCore
-                                background="transparent"
-                                minSize={0.4}
-                                maxSize={1}
-                                particleDensity={500}
-                                className="w-full h-full"
-                                particleColor="#FFFFFF"
-                            />
-                            <SparklesCore
-                                background="transparent"
-                                minSize={0.4}
-                                maxSize={1}
-                                particleDensity={500}
-                                className="w-full h-full"
-                                particleColor="#FFFFFF"
-                            />
+                            <div className="w-full h-full bg-[radial-gradient(circle_at_20%_50%,rgba(255,255,255,0.24),transparent_35%),radial-gradient(circle_at_70%_30%,rgba(255,255,255,0.18),transparent_30%),radial-gradient(circle_at_50%_80%,rgba(59,130,246,0.24),transparent_45%)]" />
+                            <div className="w-full h-full bg-[radial-gradient(circle_at_80%_50%,rgba(255,255,255,0.24),transparent_35%),radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.18),transparent_30%),radial-gradient(circle_at_40%_70%,rgba(59,130,246,0.24),transparent_45%)]" />
                         </motion.div>
                     </motion.div>
                 )}

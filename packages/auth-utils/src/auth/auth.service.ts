@@ -10,7 +10,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { createHash, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { PRISMA_SERVICE, PrismaClient } from '@lireons/database';
 import type { AuthTokenResponse, AuthUserProfile } from '@lireons/shared-types';
 import { SignupDto } from './dto/signup.dto';
@@ -561,6 +561,411 @@ export class AuthService {
         refreshTokenExpiry: null,
       },
     });
+  }
+
+  /**
+   * Generate the provider OAuth redirect URL with signed state.
+   */
+  getOAuthRedirectUrl(provider: string): string {
+    const state = this.generateOAuthState();
+    const backendUrl =
+      this.configService.get<string>('app.backendUrl') ||
+      process.env.BACKEND_URL ||
+      'http://localhost:4000';
+    const redirectUri = `${backendUrl}/api/auth/oauth/${provider}/callback`;
+
+    if (provider === 'google') {
+      const clientId = process.env.GOOGLE_CLIENT_ID;
+      if (!clientId) throw new InternalServerErrorException('Google OAuth not configured');
+      const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+      url.searchParams.set('client_id', clientId);
+      url.searchParams.set('redirect_uri', redirectUri);
+      url.searchParams.set('response_type', 'code');
+      url.searchParams.set('scope', 'openid email profile');
+      url.searchParams.set('state', state);
+      url.searchParams.set('access_type', 'offline');
+      url.searchParams.set('prompt', 'select_account');
+      return url.toString();
+    }
+
+    if (provider === 'github') {
+      const clientId = process.env.GITHUB_CLIENT_ID;
+      if (!clientId) throw new InternalServerErrorException('GitHub OAuth not configured');
+      const url = new URL('https://github.com/login/oauth/authorize');
+      url.searchParams.set('client_id', clientId);
+      url.searchParams.set('redirect_uri', redirectUri);
+      url.searchParams.set('scope', 'read:user user:email');
+      url.searchParams.set('state', state);
+      return url.toString();
+    }
+
+    if (provider === 'linkedin') {
+      const clientId = process.env.LINKEDIN_CLIENT_ID;
+      if (!clientId) throw new InternalServerErrorException('LinkedIn OAuth not configured');
+      const url = new URL('https://www.linkedin.com/oauth/v2/authorization');
+      url.searchParams.set('client_id', clientId);
+      url.searchParams.set('redirect_uri', redirectUri);
+      url.searchParams.set('response_type', 'code');
+      url.searchParams.set('scope', 'openid profile email');
+      url.searchParams.set('state', state);
+      return url.toString();
+    }
+
+    if (provider === 'facebook') {
+      const clientId = process.env.FACEBOOK_APP_ID;
+      if (!clientId) throw new InternalServerErrorException('Facebook OAuth not configured');
+      const url = new URL('https://www.facebook.com/v19.0/dialog/oauth');
+      url.searchParams.set('client_id', clientId);
+      url.searchParams.set('redirect_uri', redirectUri);
+      url.searchParams.set('scope', 'email,public_profile');
+      url.searchParams.set('state', state);
+      return url.toString();
+    }
+
+    throw new BadRequestException(`Unsupported OAuth provider: ${provider}`);
+  }
+
+  /**
+   * Exchange OAuth authorization code for app JWT tokens.
+   */
+  async handleOAuthCode(
+    provider: string,
+    code: string,
+    state: string,
+  ): Promise<AuthTokenResponse> {
+    this.validateOAuthState(state);
+
+    const backendUrl =
+      this.configService.get<string>('app.backendUrl') ||
+      process.env.BACKEND_URL ||
+      'http://localhost:4000';
+    const redirectUri = `${backendUrl}/api/auth/oauth/${provider}/callback`;
+
+    if (provider === 'google') {
+      return this.handleGoogleCode(code, redirectUri);
+    }
+
+    if (provider === 'github') {
+      return this.handleGithubCode(code, redirectUri);
+    }
+
+    if (provider === 'linkedin') {
+      return this.handleLinkedinCode(code, redirectUri);
+    }
+
+    if (provider === 'facebook') {
+      return this.handleFacebookCode(code, redirectUri);
+    }
+
+    throw new BadRequestException(`Unsupported OAuth provider: ${provider}`);
+  }
+
+  private async handleGoogleCode(
+    code: string,
+    redirectUri: string,
+  ): Promise<AuthTokenResponse> {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      throw new InternalServerErrorException('Google OAuth not configured');
+    }
+
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      }),
+    });
+
+    if (!tokenRes.ok) {
+      throw new UnauthorizedException('Google token exchange failed');
+    }
+
+    const tokenData = (await tokenRes.json()) as { id_token?: string };
+    const rawPayload = tokenData.id_token?.split('.')[1];
+    if (!rawPayload) {
+      throw new UnauthorizedException('Google ID token missing');
+    }
+
+    const userInfo = JSON.parse(
+      Buffer.from(rawPayload, 'base64').toString('utf-8'),
+    ) as { email?: string; name?: string };
+
+    if (!userInfo.email) {
+      throw new BadRequestException('No email returned from Google');
+    }
+
+    return this.oauthCallback({
+      provider: 'google',
+      email: userInfo.email,
+      name: userInfo.name || userInfo.email,
+    });
+  }
+
+  private async handleGithubCode(
+    code: string,
+    redirectUri: string,
+  ): Promise<AuthTokenResponse> {
+    const clientId = process.env.GITHUB_CLIENT_ID;
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      throw new InternalServerErrorException('GitHub OAuth not configured');
+    }
+
+    const tokenRes = await fetch(
+      'https://github.com/login/oauth/access_token',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          code,
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: redirectUri,
+        }),
+      },
+    );
+
+    if (!tokenRes.ok) {
+      throw new UnauthorizedException('GitHub token exchange failed');
+    }
+
+    const tokenData = (await tokenRes.json()) as { access_token?: string; error?: string };
+    if (!tokenData.access_token) {
+      throw new UnauthorizedException('GitHub OAuth failed: ' + (tokenData.error ?? 'unknown'));
+    }
+
+    const userRes = await fetch('https://api.github.com/user', {
+      headers: {
+        Authorization: `Bearer ${tokenData.access_token}`,
+        Accept: 'application/vnd.github.v3+json',
+      },
+    });
+
+    if (!userRes.ok) {
+      throw new UnauthorizedException('Failed to fetch GitHub user info');
+    }
+
+    const githubUser = (await userRes.json()) as {
+      email?: string | null;
+      name?: string | null;
+      login?: string;
+    };
+
+    let email = githubUser.email ?? null;
+
+    if (!email) {
+      const emailsRes = await fetch('https://api.github.com/user/emails', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      if (emailsRes.ok) {
+        const emails = (await emailsRes.json()) as Array<{
+          email: string;
+          primary: boolean;
+          verified: boolean;
+        }>;
+        const primary = emails.find((e) => e.primary && e.verified);
+        email = primary?.email ?? null;
+      }
+    }
+
+    if (!email) {
+      throw new BadRequestException(
+        'No verified email available from GitHub account',
+      );
+    }
+
+    return this.oauthCallback({
+      provider: 'github',
+      email,
+      name: githubUser.name || githubUser.login || email,
+    });
+  }
+
+  private async handleLinkedinCode(
+    code: string,
+    redirectUri: string,
+  ): Promise<AuthTokenResponse> {
+    const clientId = process.env.LINKEDIN_CLIENT_ID;
+    const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      throw new InternalServerErrorException('LinkedIn OAuth not configured');
+    }
+
+    const tokenRes = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      }),
+    });
+
+    if (!tokenRes.ok) {
+      throw new UnauthorizedException('LinkedIn token exchange failed');
+    }
+
+    const tokenData = (await tokenRes.json()) as { id_token?: string; access_token?: string };
+
+    // LinkedIn OIDC: parse userinfo from id_token if present
+    if (tokenData.id_token) {
+      const rawPayload = tokenData.id_token.split('.')[1];
+      const userInfo = JSON.parse(
+        Buffer.from(rawPayload, 'base64').toString('utf-8'),
+      ) as { email?: string; name?: string; given_name?: string; family_name?: string };
+
+      const email = userInfo.email;
+      if (!email) throw new BadRequestException('No email returned from LinkedIn');
+
+      const name =
+        userInfo.name ||
+        [userInfo.given_name, userInfo.family_name].filter(Boolean).join(' ') ||
+        email;
+
+      return this.oauthCallback({ provider: 'linkedin', email, name });
+    }
+
+    // Fallback: use /v2/userinfo endpoint
+    if (!tokenData.access_token) {
+      throw new UnauthorizedException('LinkedIn OAuth failed: no access token');
+    }
+
+    const userRes = await fetch('https://api.linkedin.com/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+
+    if (!userRes.ok) {
+      throw new UnauthorizedException('Failed to fetch LinkedIn user info');
+    }
+
+    const userInfo = (await userRes.json()) as {
+      email?: string;
+      name?: string;
+      given_name?: string;
+      family_name?: string;
+    };
+
+    const email = userInfo.email;
+    if (!email) throw new BadRequestException('No email returned from LinkedIn');
+
+    const name =
+      userInfo.name ||
+      [userInfo.given_name, userInfo.family_name].filter(Boolean).join(' ') ||
+      email;
+
+    return this.oauthCallback({ provider: 'linkedin', email, name });
+  }
+
+  private async handleFacebookCode(
+    code: string,
+    redirectUri: string,
+  ): Promise<AuthTokenResponse> {
+    const appId = process.env.FACEBOOK_APP_ID;
+    const appSecret = process.env.FACEBOOK_APP_SECRET;
+    if (!appId || !appSecret) {
+      throw new InternalServerErrorException('Facebook OAuth not configured');
+    }
+
+    const tokenRes = await fetch(
+      `https://graph.facebook.com/v19.0/oauth/access_token?` +
+        new URLSearchParams({
+          code,
+          client_id: appId,
+          client_secret: appSecret,
+          redirect_uri: redirectUri,
+        }),
+    );
+
+    if (!tokenRes.ok) {
+      throw new UnauthorizedException('Facebook token exchange failed');
+    }
+
+    const tokenData = (await tokenRes.json()) as { access_token?: string };
+    if (!tokenData.access_token) {
+      throw new UnauthorizedException('Facebook OAuth failed: no access token');
+    }
+
+    const userRes = await fetch(
+      `https://graph.facebook.com/me?fields=id,name,email&access_token=${encodeURIComponent(tokenData.access_token)}`,
+    );
+
+    if (!userRes.ok) {
+      throw new UnauthorizedException('Failed to fetch Facebook user info');
+    }
+
+    const fbUser = (await userRes.json()) as {
+      id?: string;
+      name?: string;
+      email?: string;
+    };
+
+    if (!fbUser.email) {
+      throw new BadRequestException(
+        'No email available from Facebook. Please ensure your Facebook account has a verified email.',
+      );
+    }
+
+    return this.oauthCallback({
+      provider: 'facebook',
+      email: fbUser.email,
+      name: fbUser.name || fbUser.email,
+    });
+  }
+
+  private generateOAuthState(): string {
+    const secret = this.getAccessTokenSecret();
+    const nonce = randomBytes(16).toString('hex');
+    const timestamp = Date.now().toString();
+    const payload = `${nonce}.${timestamp}`;
+    const sig = createHmac('sha256', secret).update(payload).digest('hex');
+    return Buffer.from(`${payload}.${sig}`).toString('base64url');
+  }
+
+  private validateOAuthState(state: string): void {
+    const secret = this.getAccessTokenSecret();
+    let decoded: string;
+    try {
+      decoded = Buffer.from(state, 'base64url').toString('utf-8');
+    } catch {
+      throw new UnauthorizedException('Invalid OAuth state');
+    }
+
+    const dotIndex1 = decoded.indexOf('.');
+    const dotIndex2 = decoded.indexOf('.', dotIndex1 + 1);
+    if (dotIndex1 === -1 || dotIndex2 === -1) {
+      throw new UnauthorizedException('Invalid OAuth state format');
+    }
+
+    const nonce = decoded.slice(0, dotIndex1);
+    const timestamp = decoded.slice(dotIndex1 + 1, dotIndex2);
+    const sig = decoded.slice(dotIndex2 + 1);
+    const payload = `${nonce}.${timestamp}`;
+    const expectedSig = createHmac('sha256', secret).update(payload).digest('hex');
+
+    const sigBuf = Buffer.from(sig, 'hex');
+    const expectedBuf = Buffer.from(expectedSig, 'hex');
+    if (
+      sigBuf.length !== expectedBuf.length ||
+      !timingSafeEqual(sigBuf, expectedBuf)
+    ) {
+      throw new UnauthorizedException('OAuth state signature invalid');
+    }
+
+    const age = Date.now() - parseInt(timestamp, 10);
+    if (age > 10 * 60 * 1000) {
+      throw new UnauthorizedException('OAuth state expired');
+    }
   }
 
   private async issueTokensAndPersistSession(user: AuthUser): Promise<AuthTokenResponse> {

@@ -8,7 +8,7 @@ import {
     useScroll,
     useMotionValueEvent,
 } from "motion/react";
-import { useSession } from "next-auth/react";
+import { useSession } from "@/lib/session";
 import { useRouter, usePathname } from "next/navigation";
 
 export default function NavBarMain() {
@@ -27,7 +27,7 @@ export default function NavBarMain() {
 
             const targetPath = "/complete-profile";
             // Ensure we don't redirect away if they are already on the info page
-            if (isProfileIncomplete && pathname !== targetPath && pathname !== "/registered-info" && pathname !== "/already-registered") {
+            if (isProfileIncomplete && pathname !== targetPath && pathname !== "/onboarding" && pathname !== "/already-registered") {
                 router.replace(targetPath);
             }
         }
@@ -42,7 +42,7 @@ export default function NavBarMain() {
         const hiddenPaths = [
             "/complete-profile",
             "/already-registered", // Added this based on your request
-            "/registered-info"     // Added this just in case based on your redirect logic
+            "/onboarding"     // Added this just in case based on your redirect logic
         ];
 
         if (hiddenPaths.includes(pathname)) return false;

@@ -24,13 +24,28 @@ export class TenantService {
 	) {}
 
 	create(createTenantDto: CreateTenantDto, ownerId: string) {
+		const { phone, billingAddress, taxId, ...tenantData } = createTenantDto;
+
 		const tenantPayload: CreateTenantWithOwner = {
-			...createTenantDto,
+			...tenantData,
 			ownerId,
 		};
 
-		return this.prisma.tenantOrganization.create({
-			data: tenantPayload,
+		return this.prisma.$transaction(async (tx) => {
+			if (phone || billingAddress || taxId) {
+				await tx.tenantOwner.update({
+					where: { id: ownerId },
+					data: {
+						phone: phone || undefined,
+						billingAddress: billingAddress || undefined,
+						taxId: taxId || undefined,
+					},
+				});
+			}
+
+			return tx.tenantOrganization.create({
+				data: tenantPayload,
+			});
 		});
 	}
 

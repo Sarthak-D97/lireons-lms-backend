@@ -28,9 +28,6 @@ case "${1:-all}" in
   academy-api)
     build academy-api Dockerfile.academy-api
     ;;
-  control-plane-api)
-    build control-plane-api Dockerfile.control-plane-api
-    ;;
   media-worker)
     build media-worker Dockerfile.media-worker
     ;;
@@ -42,7 +39,6 @@ case "${1:-all}" in
     ;;
   all)
     build academy-api Dockerfile.academy-api
-    build control-plane-api Dockerfile.control-plane-api
     build media-worker Dockerfile.media-worker
     build lireons-main Dockerfile.lireons-main
     build code-runner-worker Dockerfile.code-runner-worker

@@ -10,10 +10,6 @@ datasource db {
   provider = "postgresql"
 }
 
-// ============================================================================
-// PART 1: THE LIREONS SAAS CONTROL PLANE (Your Core Business)
-// ============================================================================
-
 model LireonsAdmin {
   id           String   @id @default(uuid()) @map("admin_id")
   name         String
@@ -127,10 +123,6 @@ model SaasPaymentTransaction {
   @@map("saas_payment_transactions")
 }
 
-// ============================================================================
-// THE BRIDGE: PROVISIONING THE ACADEMY
-// ============================================================================
-
 model TenantOrganization {
   id                String   @id @default(uuid()) @map("org_id")
   ownerId           String   @map("owner_id")
@@ -177,9 +169,6 @@ model TenantOrganization {
   @@map("tenant_organizations")
 }
 
-// ============================================================================
-// PART 2: THE ACADEMY DATA PLANE 
-// ============================================================================
 
 // --- Branding & Apps ---
 model OrganizationSettings {

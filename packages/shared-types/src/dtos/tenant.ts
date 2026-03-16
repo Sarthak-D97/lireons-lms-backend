@@ -5,6 +5,9 @@ export interface CreateTenantBody {
   customDomain?: string;
   status?: string;
   dbRoutingKey?: string;
+  phone?: string;
+  billingAddress?: string;
+  taxId?: string;
 }
 
 export interface CreateTenantWithOwner extends CreateTenantBody {

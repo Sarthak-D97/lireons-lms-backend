@@ -1,6 +1,6 @@
 "use client";
 import { IconArrowRight } from "@tabler/icons-react";
-import { useSession } from "next-auth/react";
+import { useSession } from "@/lib/session";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { ClientOnly } from "@lireons/ui";
@@ -60,7 +60,7 @@ export default function FeatureDetails() {
         phone: "Active"
       }).toString();
 
-      router.push(`/registered-info?${queryParams}`);
+      router.push(`/onboarding?${queryParams}`);
     } else {
       router.push("/signup");
     }

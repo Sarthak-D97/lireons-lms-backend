@@ -1,4 +1,5 @@
-import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Request, Param, Query, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { SignupDto } from './dto/signup.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
@@ -67,5 +68,28 @@ export class AuthController {
   @Post('oauth-callback')
   async oauthCallback(@Body() oauthCallbackDto: OAuthCallbackDto) {
     return this.authService.oauthCallback(oauthCallbackDto);
+  }
+
+  @Get('oauth/:provider/start')
+  oauthStart(@Param('provider') provider: string, @Res() res: Response) {
+    const url = this.authService.getOAuthRedirectUrl(provider);
+    res.redirect(url);
+  }
+
+  @Get('oauth/:provider/callback')
+  async oauthProviderCallback(
+    @Param('provider') provider: string,
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() res: Response,
+  ) {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    try {
+      const auth = await this.authService.handleOAuthCode(provider, code, state);
+      const encoded = Buffer.from(JSON.stringify(auth)).toString('base64url');
+      res.redirect(`${frontendUrl}/auth-callback#session=${encoded}`);
+    } catch {
+      res.redirect(`${frontendUrl}/login?error=oauth_failed`);
+    }
   }
 }

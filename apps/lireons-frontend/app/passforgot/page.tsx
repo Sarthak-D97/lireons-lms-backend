@@ -1,7 +1,7 @@
 "use client";
 import React, { JSX, useState, FormEvent, useRef } from "react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const API_URL = process.env.NEST_PUBLIC_API_URL || "http://localhost:4000";
 import { LampContainer } from "@/components/ui/lamp";
 import { motion } from "motion/react";
 import { IconArrowLeft } from "@tabler/icons-react";

@@ -1,17 +1,20 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession } from "@/lib/session";
 import { Building2, Globe, Phone, MapPin, CheckCircle2, ChevronRight, ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const COUNTRY_CODES = ["+91", "+1", "+44", "+61", "+971"];
 
 export default function OnboardingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const plan = searchParams.get("plan") || "tier_shared";
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
 
   const [step, setStep] = useState(1);
+  const [countryCode, setCountryCode] = useState("+91");
   const [formData, setFormData] = useState({
     // Owner Details
     phone: "",
@@ -23,6 +26,15 @@ export default function OnboardingPage() {
     subdomain: "",
     customDomain: "",
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.replace("/login");
+    }
+  }, [status, router]);
 
   // Auto-generate subdomain from academy name
   useEffect(() => {
@@ -34,7 +46,9 @@ export default function OnboardingPage() {
     }
   }, [formData.orgName]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
+  ) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -43,14 +57,61 @@ export default function OnboardingPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // 1. Hit your NestJS backend to create TenantOwner & TenantOrganization (Status: PENDING)
-    // 2. NestJS returns a Stripe Checkout Session URL
-    // 3. Router pushes to Stripe URL
-    
-    console.log("Submitting to backend:", formData);
-    // Mocking the redirect to payment
-    router.push(`/checkout?plan=${plan}`); 
+
+    if (!session?.backendToken) {
+      setError("Your login session is missing or expired. Please login again.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const normalizedPhone = formData.phone.replace(/\D/g, "");
+      const payload = {
+        orgName: formData.orgName.trim(),
+        orgType: formData.orgType,
+        subdomain: formData.subdomain.trim().toLowerCase(),
+        customDomain: formData.customDomain.trim() || undefined,
+        status: "PENDING",
+        phone: normalizedPhone ? `${countryCode}${normalizedPhone}` : undefined,
+        billingAddress: formData.billingAddress.trim() || undefined,
+        taxId: formData.taxId.trim() || undefined,
+      };
+
+      const response = await fetch(`${API_URL}/api/tenant`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.backendToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        const message = data?.message || "Failed to create tenant. Please try again.";
+        throw new Error(Array.isArray(message) ? message.join(", ") : message);
+      }
+
+      setSuccess("Academy created successfully. Redirecting...");
+      router.push("/profile");
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : "Failed to create tenant.";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-slate-700 dark:text-slate-200">
+        Checking your account...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 transition-colors duration-300">
@@ -70,6 +131,17 @@ export default function OnboardingPage() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white dark:bg-slate-900 py-8 px-4 shadow sm:rounded-2xl sm:px-10 border border-slate-200 dark:border-slate-800">
           <form className="space-y-6" onSubmit={step === 2 ? handleSubmit : (e) => { e.preventDefault(); handleNext(); }}>
+
+            {error && (
+              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+                {error}
+              </div>
+            )}
+            {success && (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
+                {success}
+              </div>
+            )}
             
             {/* STEP 1: OWNER DETAILS */}
             {step === 1 && (
@@ -85,18 +157,26 @@ export default function OnboardingPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Phone Number *</label>
-                  <div className="mt-1 relative rounded-md shadow-sm">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Phone className="h-4 w-4 text-slate-400" />
-                    </div>
+                  <div className="mt-1 flex gap-2 rounded-md shadow-sm">
+                    <select
+                      value={countryCode}
+                      onChange={(e) => setCountryCode(e.target.value)}
+                      className="w-24 px-2 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
+                    >
+                      {COUNTRY_CODES.map((code) => (
+                        <option key={code} value={code}>
+                          {code}
+                        </option>
+                      ))}
+                    </select>
                     <input
                       type="tel"
                       name="phone"
                       required
                       value={formData.phone}
-                      onChange={handleChange}
-                      className="block w-full pl-10 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
-                      placeholder="+91 9876543210"
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, "") })}
+                      className="block w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
+                      placeholder="9876543210"
                     />
                   </div>
                 </div>
@@ -123,7 +203,7 @@ export default function OnboardingPage() {
                       name="billingAddress"
                       rows={3}
                       value={formData.billingAddress}
-                      onChange={(e:any) => handleChange(e)}
+                      onChange={handleChange}
                       className="block w-full pl-10 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:text-white"
                       placeholder="123 Education Street, City, State, ZIP"
                     />
@@ -206,9 +286,10 @@ export default function OnboardingPage() {
                     </button>
                     <button
                         type="submit"
+                      disabled={loading}
                         className="flex-1 flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
                     >
-                        Proceed to Payment
+                      {loading ? "Creating Academy..." : "Create Academy"}
                     </button>
                 </div>
               </div>

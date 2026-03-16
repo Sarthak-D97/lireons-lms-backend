@@ -2,8 +2,8 @@
 import React from "react";
 import { CardBody, CardContainer, CardItem } from "@/components/ui/3d-card";
 import Image from "next/image";
-import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import JoinUsButton from "@/components/sections/JoinUsButton";
 
 interface ThreeDCardProps {
     title: string;
@@ -12,25 +12,7 @@ interface ThreeDCardProps {
 }
 
 export default function ThreeDCard({ title, description, image }: ThreeDCardProps) {
-    const { data: session, status } = useSession();
     const router = useRouter();
-
-    const handleJoinUs = (e: React.MouseEvent<any>) => {
-        e.stopPropagation();
-
-        if (status === "authenticated") {
-            const queryParams = new URLSearchParams({
-                name: session?.user?.name || "",
-                email: session?.user?.email || "",
-                orgType: "Registered User",
-                phone: "Active"
-            }).toString();
-
-            router.push(`/registered-info?${queryParams}`);
-        } else {
-            router.push("/signup");
-        }
-    };
 
     return (
         <CardContainer className="inter-var">
@@ -78,14 +60,10 @@ export default function ThreeDCard({ title, description, image }: ThreeDCardProp
                         Know More →
                     </CardItem>
 
-                    <CardItem
-                        translateZ={20}
-                        as="button"
-                        onClick={handleJoinUs}
-                        // Button: Neutral-900 (Light) | Purple-500 (Dark)
-                        className="px-4 py-2 rounded-xl bg-neutral-900 dark:bg-purple-500 text-white text-xs font-bold hover:bg-neutral-800 dark:hover:bg-purple-600 transition-colors"
-                    >
-                        Join Us
+                    <CardItem translateZ={20}>
+                        <JoinUsButton className="px-4 py-2 rounded-xl bg-neutral-900 dark:bg-purple-500 text-white text-xs font-bold hover:bg-neutral-800 dark:hover:bg-purple-600 transition-colors">
+                            Join Us
+                        </JoinUsButton>
                     </CardItem>
                 </div>
             </CardBody>

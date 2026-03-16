@@ -5,7 +5,7 @@ export class CreateTenantDto implements CreateTenantBody {
 
   @IsString()
   @IsNotEmpty()
-  orgName: string;
+  orgName!: string;
 
   @IsString()
   @IsOptional()
@@ -13,7 +13,7 @@ export class CreateTenantDto implements CreateTenantBody {
 
   @IsString()
   @IsNotEmpty()
-  subdomain: string;
+  subdomain!: string;
 
   @IsString()
   @IsOptional()
@@ -26,4 +26,16 @@ export class CreateTenantDto implements CreateTenantBody {
   @IsString()
   @IsOptional()
   dbRoutingKey?: string;
+
+  @IsString()
+  @IsOptional()
+  phone?: string;
+
+  @IsString()
+  @IsOptional()
+  billingAddress?: string;
+
+  @IsString()
+  @IsOptional()
+  taxId?: string;
 }

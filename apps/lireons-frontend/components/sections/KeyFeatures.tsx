@@ -2,12 +2,6 @@
 import React from "react";
 import { motion } from "motion/react";
 import { IconChevronsRight } from "@tabler/icons-react";
-import { Merienda } from 'next/font/google'
-const merienda = Merienda({
-    subsets: ['latin'],
-    display: 'swap',
-    variable: '--font-merienda',
-})
 
 const features = [
     {

@@ -2,14 +2,16 @@
 import React, { useState } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const COUNTRY_CODES = ["+91", "+1", "+44", "+61", "+971"];
 import { useRouter } from "next/navigation";
 import { IconPhone, IconBuildingSkyscraper } from "@tabler/icons-react";
-import { useSession } from "next-auth/react";
+import { useSession } from "@/lib/session";
 
 export default function CompleteProfilePage() {
     const router = useRouter();
     const { data: session, update } = useSession();
     const [loading, setLoading] = useState(false);
+    const [countryCode, setCountryCode] = useState("+91");
     const [formData, setFormData] = useState({
         phone: "",
         orgType: "K-12 Schools",
@@ -20,16 +22,21 @@ export default function CompleteProfilePage() {
         setLoading(true);
 
         try {
+            const normalizedPhone = formData.phone.replace(/\D/g, "");
+            const fullPhone = normalizedPhone ? `${countryCode}${normalizedPhone}` : "";
             const res = await fetch(`${API_URL}/api/users/profile`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(formData),
+                body: JSON.stringify({
+                    ...formData,
+                    phone: fullPhone,
+                }),
             });
 
             if (!res.ok) throw new Error("Failed to save data");
             await update({
                 userdatas: {
-                    number: formData.phone,
+                    number: fullPhone,
                     orgtype: formData.orgType
                 }
             });
@@ -37,10 +44,10 @@ export default function CompleteProfilePage() {
                 name: session?.user?.name || "",
                 email: session?.user?.email || "",
                 orgType: formData.orgType,
-                phone: formData.phone
+                phone: fullPhone
             }).toString();
 
-            router.replace(`/registered-info?${queryParams}`);
+            router.replace(`/onboarding?${queryParams}`);
 
         } catch (error) {
             console.error(error);
@@ -68,8 +75,19 @@ export default function CompleteProfilePage() {
                     <div>
                         <label className="block text-neutral-700 dark:text-slate-400 text-sm mb-1 transition-colors">Phone Number</label>
                         {/* Input Container: Gray-50/Border-Gray-200 (Light) | Slate-800/Border-Slate-700 (Dark) */}
-                        <div className="flex items-center bg-gray-50 dark:bg-slate-800 rounded-lg px-3 border border-gray-200 dark:border-slate-700 focus-within:border-cyan-600 dark:focus-within:border-cyan-500 transition-colors">
+                        <div className="flex items-center gap-2 bg-gray-50 dark:bg-slate-800 rounded-lg px-3 border border-gray-200 dark:border-slate-700 focus-within:border-cyan-600 dark:focus-within:border-cyan-500 transition-colors">
                             <IconPhone className="text-neutral-400 dark:text-slate-400 w-5 h-5 transition-colors" />
+                            <select
+                                value={countryCode}
+                                onChange={(e) => setCountryCode(e.target.value)}
+                                className="bg-gray-50 dark:bg-slate-800 text-neutral-900 dark:text-white py-3 focus:outline-none rounded-lg transition-colors cursor-pointer"
+                            >
+                                {COUNTRY_CODES.map((code) => (
+                                    <option key={code} value={code} className="bg-white dark:bg-slate-900">
+                                        {code}
+                                    </option>
+                                ))}
+                            </select>
                             <input
                                 type="tel"
                                 required
@@ -77,7 +95,7 @@ export default function CompleteProfilePage() {
                                 className="bg-transparent text-neutral-900 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-slate-500 p-3 w-full focus:outline-none transition-colors"
                                 placeholder="Enter your mobile number"
                                 value={formData.phone}
-                                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, "") })}
                             />
                         </div>
                     </div>

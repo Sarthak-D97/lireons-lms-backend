@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { useSession } from "@/lib/session";
 import { useRouter } from "next/navigation";
 import { IconArrowRight } from "@tabler/icons-react";
 const merienda = Merienda({
@@ -111,7 +111,7 @@ export default function SolutionsPage() {
                 phone: "Active"
             }).toString();
 
-            router.push(`/registered-info?${queryParams}`);
+            router.push(`/onboarding?${queryParams}`);
         } else {
             router.push("/signup");
         }

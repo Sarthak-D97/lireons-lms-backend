@@ -4,7 +4,7 @@ import { IconCheck, IconArrowRight } from "@tabler/icons-react";
 import { Merienda } from "next/font/google";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { useSession } from "next-auth/react";
+import { useSession } from "@/lib/session";
 import { useRouter } from "next/navigation";
 import {
     ShieldCheck,

@@ -28,6 +28,7 @@
   "devDependencies": {
     "@lireons/typescript-config": "workspace:*",
     "@types/bcrypt": "catalog:",
+    "@types/express": "catalog:",
     "@types/nodemailer": "catalog:",
     "@types/passport-jwt": "catalog:",
     "@types/passport-local": "catalog:",

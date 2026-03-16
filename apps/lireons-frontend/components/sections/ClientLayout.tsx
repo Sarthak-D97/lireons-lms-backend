@@ -25,16 +25,9 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
 import Link from "next/link";
-import { Merienda } from 'next/font/google';
-import { useSession, signOut } from "next-auth/react";
+import { useSession, signOut } from "@/lib/session";
 import { useRouter, usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-
-const merienda = Merienda({
-    subsets: ['latin'],
-    display: 'swap',
-    variable: '--font-merienda',
-})
 
 // --- HELPER FUNCTIONS & COMPONENTS ---
 
@@ -48,7 +41,7 @@ export const Logo = () => {
         <Link href="/" className="relative z-20 flex items-center space-x-2 py-1 text-sm font-normal">
             <Image src="/logo.png" alt="lireons" height={50} width={50} />
             <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-medium whitespace-pre">
-                <span className={`${merienda.className} !text-neutral-800 dark:!text-white hover:text-cyan-600 dark:hover:text-yellow-100 transition-colors`}>
+                <span className="font-(--font-merienda) !text-neutral-800 dark:!text-white hover:text-cyan-600 dark:hover:text-yellow-100 transition-colors">
                     Lireons
                 </span>
             </motion.span>
@@ -95,7 +88,7 @@ export default function ClientLayout({
             const isProfileIncomplete = !userDatas?.number || !userDatas?.orgtype;
 
             const targetPath = "/complete-profile";
-            if (isProfileIncomplete && pathname !== targetPath && pathname !== "/registered-info") {
+            if (isProfileIncomplete && pathname !== targetPath && pathname !== "/onboarding") {
                 router.replace(targetPath);
             }
         }

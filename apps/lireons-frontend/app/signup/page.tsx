@@ -2,16 +2,11 @@
 import React, { JSX, useState, FormEvent, useRef } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const COUNTRY_CODES = ["+91", "+1", "+44", "+61", "+971"];
 import { LampContainer } from "@/components/ui/lamp";
 import { motion } from "motion/react";
-import {
-    IconBrandGoogle,
-    IconBrandGithub,
-    IconBrandLinkedin,
-    IconBrandMeta
-} from "@tabler/icons-react";
 import Link from "next/link";
-import { useSession, signIn } from "next-auth/react";
+import { useSession } from "@/lib/session";
 import { useRouter } from "next/navigation";
 
 export default function SignupPage(): JSX.Element {
@@ -27,6 +22,7 @@ export default function SignupPage(): JSX.Element {
     // Form Data States
     const [name, setName] = useState("");
     const [orgtype, setOrgtype] = useState("");
+    const [countryCode, setCountryCode] = useState("+91");
     const [number, setNumber] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -54,10 +50,17 @@ export default function SignupPage(): JSX.Element {
         }
 
         try {
+            const normalizedPhone = number.replace(/\D/g, "");
             const response = await fetch(`${API_URL}/api/auth/signup`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, email, password, orgtype, number }),
+                body: JSON.stringify({
+                    name,
+                    email,
+                    password,
+                    orgtype,
+                    number: normalizedPhone ? `${countryCode}${normalizedPhone}` : undefined,
+                }),
             });
 
             const responseData = await response.json();
@@ -122,13 +125,6 @@ export default function SignupPage(): JSX.Element {
             setIsLoading(false);
         }
     };
-    const handleSocialLogin = async (provider: string) => {
-        try {
-            await signIn(provider, { callbackUrl: "/login" });
-        } catch (err) {
-            console.error(`${provider} login error:`, err);
-        }
-    };
     const handleOTPChange = (index: number, value: string) => {
         if (!/^\d*$/.test(value)) return;
         const newOtp = [...otp];
@@ -186,7 +182,7 @@ export default function SignupPage(): JSX.Element {
     }
 
     if (status === "authenticated" && session) {
-        router.push("/registered-info");
+        router.push("/onboarding");
     }
 
     return (
@@ -251,13 +247,26 @@ export default function SignupPage(): JSX.Element {
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-300">Phone Number</label>
-                            <input
-                                type="tel"
-                                value={number}
-                                onChange={(e) => setNumber(e.target.value)}
-                                placeholder="+91 98765 XXXXX"
-                                className="w-full bg-slate-900/50 border border-slate-800 text-white text-sm rounded-lg focus:ring-2 focus:ring-cyan-500 block p-2.5 outline-none"
-                            />
+                            <div className="flex gap-2">
+                                <select
+                                    value={countryCode}
+                                    onChange={(e) => setCountryCode(e.target.value)}
+                                    className="w-24 bg-slate-900/50 border border-slate-800 text-white text-sm rounded-lg focus:ring-2 focus:ring-cyan-500 p-2.5 outline-none"
+                                >
+                                    {COUNTRY_CODES.map((code) => (
+                                        <option key={code} value={code} className="bg-slate-900">
+                                            {code}
+                                        </option>
+                                    ))}
+                                </select>
+                                <input
+                                    type="tel"
+                                    value={number}
+                                    onChange={(e) => setNumber(e.target.value.replace(/\D/g, ""))}
+                                    placeholder="9876543210"
+                                    className="flex-1 bg-slate-900/50 border border-slate-800 text-white text-sm rounded-lg focus:ring-2 focus:ring-cyan-500 block p-2.5 outline-none"
+                                />
+                            </div>
                         </div>
 
                         <div className="space-y-2">
@@ -361,42 +370,72 @@ export default function SignupPage(): JSX.Element {
                     </form>
                 )}
 
-                <div className="relative my-8">
-                    <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-slate-800"></div>
-                    </div>
-                    <div className="relative flex justify-center text-xs">
-                        <span className="bg-slate-950 px-2 text-slate-400">Or Continue with</span>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-4 gap-4">
-                    <SocialButton icon={<IconBrandGoogle className="h-5 w-5" />} label="Google" onClick={() => handleSocialLogin('google')} />
-                    <SocialButton icon={<IconBrandGithub className="h-5 w-5" />} label="GitHub" onClick={() => handleSocialLogin('github')} />
-                    <SocialButton icon={<IconBrandLinkedin className="h-5 w-5" />} label="LinkedIn" onClick={() => handleSocialLogin('linkedin')} />
-                    <SocialButton icon={<IconBrandMeta className="h-5 w-5" />} label="Facebook" onClick={() => handleSocialLogin('facebook')} />
-                </div>
-
                 <p className="mt-8 text-center text-xs text-slate-400">
                     Already have an account?{" "}
                     <Link href="/login" className="text-cyan-400 hover:underline">
                         Login
                     </Link>
                 </p>
+
+                {step === 'signup' && (
+                    <div className="mt-6">
+                        <div className="relative flex items-center gap-3">
+                            <div className="flex-1 border-t border-slate-700" />
+                            <span className="text-xs text-slate-500 whitespace-nowrap">or continue with</span>
+                            <div className="flex-1 border-t border-slate-700" />
+                        </div>
+                        <div className="mt-4 flex flex-col gap-3">
+                            <div className="w-full">
+                                <OAuthButton provider="google" label="Google" />
+                            </div>
+                            <div className="grid grid-cols-3 gap-3">
+                                <OAuthButton provider="github" label="GitHub" />
+                                <OAuthButton provider="linkedin" label="LinkedIn" />
+                                <OAuthButton provider="facebook" label="Facebook" />
+                            </div>
+                        </div>
+                    </div>
+                )}
             </motion.div>
         </LampContainer>
     );
 }
 
-const SocialButton = ({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) => {
+function OAuthButton({ provider, label }: { provider: string; label: string }) {
+    const API_URL = process.env.NEST_PUBLIC_API_URL || "http://localhost:4000";
     return (
         <button
             type="button"
-            onClick={onClick}
-            className="flex items-center justify-center p-2.5 rounded-lg border border-slate-800 bg-slate-900/50 text-slate-400 hover:bg-slate-800 hover:text-white hover:border-slate-700 transition-all"
-            title={`Sign up with ${label}`}
+            onClick={() => { window.location.href = `${API_URL}/api/auth/oauth/${provider}/start`; }}
+            className={`w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-medium rounded-lg transition-colors ${provider === "google"
+                    ? "py-3 px-6 text-base" 
+                    : "py-2.5 px-4 text-sm" 
+                }`}
         >
-            {icon}
+            {provider === "google" && (
+                <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true"> 
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                </svg>
+            )}
+            {provider === "github" && (
+                <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 .3a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.74.08-.73.08-.73 1.21.09 1.85 1.24 1.85 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.17 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.65.24 2.87.12 3.17.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12 12 0 0 0 12 .3z" />
+                </svg>
+            )}
+            {provider === "linkedin" && (
+                <svg className="w-4 h-4 fill-[#0A66C2]" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M20.45 20.45h-3.55v-5.57c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.13 1.45-2.13 2.94v5.67H9.37V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.45v6.29zM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45C23.2 24 24 23.23 24 22.27V1.73C24 .77 23.2 0 22.22 0z" />
+                </svg>
+            )}
+            {provider === "facebook" && (
+                <svg className="w-4 h-4 fill-[#1877F2]" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M24 12.07C24 5.41 18.63 0 12 0S0 5.41 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.04V9.41c0-3.02 1.8-4.7 4.54-4.7 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.95.93-1.95 1.88v2.27h3.32l-.53 3.49h-2.79V24C19.61 23.1 24 18.1 24 12.07z" />
+                </svg>
+            )}
+            {label}
         </button>
     );
-};
+}

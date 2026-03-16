@@ -15,7 +15,7 @@ export default function Team() {
                 "We are looking for a skilled Backend Developer to architect scalable APIs and database structures for millions of users.",
             name: "Open Position",
             designation: "Backend Lead",
-            src: "p1.jpg"  },
+            src: "/p1.jpg"  },
         {
             quote:
                 "Join us to build the mobile interface that parents and teachers will use every day. Proficiency in React Native/Expo required.",
