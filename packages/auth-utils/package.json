@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@lireons/database": "workspace:*",
+    "@lireons/shared-types": "workspace:*",
     "@nestjs/common": "catalog:nest10",
     "@nestjs/config": "catalog:nest10",
     "@nestjs/core": "catalog:nest10",

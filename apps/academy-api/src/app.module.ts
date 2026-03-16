@@ -7,6 +7,9 @@ import { CommerceModule } from './commerce/commerce.module';
 import { DatabaseModule } from '@lireons/database';
 import { CacheModule } from '@lireons/cache';
 import { QueueModule } from '@lireons/queue';
+import { ProductModule } from './product/product.module';
+import { MaterialModule } from './material/material.module';
+import { LearnersModule } from './learners/learners.module';
 
 @Module({
   imports: [
@@ -20,6 +23,9 @@ import { QueueModule } from '@lireons/queue';
     DatabaseModule,
     CacheModule,
     QueueModule,
+    ProductModule,
+    MaterialModule,
+    LearnersModule,
   ],
   controllers: [],
   providers: [],

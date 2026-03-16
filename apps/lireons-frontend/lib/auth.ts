@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
 import type { NextAuthConfig } from "next-auth";
+import type { AuthTokenResponse, AuthUserProfile } from "@lireons/shared-types";
 import GoogleProvider from "next-auth/providers/google";
 import FacebookProvider from "next-auth/providers/facebook";
 import GithubProvider from "next-auth/providers/github";
@@ -33,7 +34,7 @@ export const authConfig: NextAuthConfig = {
             return false;
           }
 
-          const data = await res.json();
+          const data = (await res.json()) as AuthTokenResponse;
           // Store the backend JWT in the user object for use in jwt callback
           (user as any).backendToken = data.access_token;
           (user as any).backendUser = data.user;
@@ -53,12 +54,14 @@ export const authConfig: NextAuthConfig = {
         token.name = user.name;
         token.number = (user as any).backendUser?.number || (user as any).number;
         token.orgtype = (user as any).backendUser?.orgtype || (user as any).orgtype;
+        token.ownerId = (user as any).backendUser?.ownerId || (user as any).ownerId;
         token.backendToken = (user as any).backendToken;
       }
 
       if (trigger === "update" && session?.userdatas) {
         token.number = session.userdatas.number;
         token.orgtype = session.userdatas.orgtype;
+        token.ownerId = session.userdatas.ownerId;
       }
 
       return token;
@@ -70,6 +73,7 @@ export const authConfig: NextAuthConfig = {
         email: token.email,
         number: token.number,
         orgtype: token.orgtype,
+        ownerId: token.ownerId,
       };
 
       if (session.user) {
@@ -137,14 +141,17 @@ export const authConfig: NextAuthConfig = {
             return null;
           }
 
-          const data = await res.json();
+          const data = (await res.json()) as AuthTokenResponse;
+
+          const backendUser: AuthUserProfile = data.user;
 
           return {
-            id: data.user.id,
-            email: data.user.email,
-            name: data.user.name,
-            number: data.user.number,
-            orgtype: data.user.orgtype,
+            id: backendUser.id,
+            email: backendUser.email,
+            name: backendUser.name,
+            number: backendUser.number,
+            orgtype: backendUser.orgtype,
+            ownerId: backendUser.ownerId,
             backendToken: data.access_token,
           };
         } catch (err) {

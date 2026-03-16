@@ -32,6 +32,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     name: string;
     number?: string | null;
     orgtype?: string | null;
+    ownerId?: string | null;
   }) {
     if (payload.type && payload.type !== 'access') {
       throw new UnauthorizedException('Invalid access token');
@@ -43,6 +44,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       name: payload.name,
       number: payload.number,
       orgtype: payload.orgtype,
+      ownerId: payload.ownerId,
     };
   }
 }

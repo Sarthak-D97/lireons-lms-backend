@@ -28,6 +28,7 @@ export class AuthController {
         name: string;
         number?: string | null;
         orgtype?: string | null;
+        ownerId?: string | null;
       };
     },
   ) {

@@ -22,11 +22,14 @@
   },
   "dependencies": {
     "@lireons/database": "workspace:*",
+    "@lireons/shared-types": "workspace:*",
     "@nestjs/common": "catalog:nest11",
     "@nestjs/config": "catalog:nest11",
     "@nestjs/core": "catalog:nest11",
     "@nestjs/platform-express": "catalog:nest11",
     "@repo/auth": "workspace:*",
+    "class-transformer": "catalog:",
+    "class-validator": "catalog:",
     "dotenv": "catalog:",
     "reflect-metadata": "catalog:",
     "rxjs": "catalog:"

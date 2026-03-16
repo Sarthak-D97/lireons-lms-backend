@@ -7,7 +7,7 @@ import { Merienda } from 'next/font/google'
 import Team from "../components/sections/team";
 import InfoBox from "../components/sections/InfoBox";
 import InfiniteCards from "../components/sections/infinite-cards";
-import ClientOnly from "@/components/ui/ClientOnly";
+import { ClientOnly } from "@lireons/ui";
 import CardItems from "../components/sections/CardsItem";
 import { MacbookScroll } from "../components/ui/macbook-scroll";
 import MobileSection from "../components/sections/mobileapp";

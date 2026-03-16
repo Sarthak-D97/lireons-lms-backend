@@ -12,6 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { createHash, timingSafeEqual } from 'crypto';
 import { PRISMA_SERVICE, PrismaClient } from '@lireons/database';
+import type { AuthTokenResponse, AuthUserProfile } from '@lireons/shared-types';
 import { SignupDto } from './dto/signup.dto';
 import { OAuthCallbackDto } from './dto/oauth-callback.dto';
 import { OtpService } from './services/otp.service';
@@ -23,6 +24,7 @@ type AuthUser = {
   name: string;
   number?: string | null;
   orgtype?: string | null;
+  ownerId?: string | null;
 };
 
 type RefreshTokenPayload = {
@@ -71,6 +73,7 @@ export class AuthService {
       name: user.name,
       number: user.phoneNo,
       orgtype: user.orgType,
+      ownerId: null,
     };
   }
 
@@ -121,6 +124,7 @@ export class AuthService {
       name: user.name,
       number: user.phoneNo,
       orgtype: user.orgType,
+      ownerId: null,
     });
   }
 
@@ -252,6 +256,14 @@ export class AuthService {
       },
     });
 
+    const ownerId = await this.ensureTenantOwnerForOrgSignup({
+      name: user.name,
+      email: user.email,
+      passwordHash: user.password,
+      phoneNo: user.phoneNo,
+      orgType: user.orgType,
+    });
+
     await this.prisma.pendingSignup.delete({
       where: { email },
     });
@@ -262,6 +274,7 @@ export class AuthService {
       name: user.name,
       number: user.phoneNo,
       orgtype: user.orgType,
+      ownerId,
     });
   }
 
@@ -336,6 +349,7 @@ export class AuthService {
       name: user.name,
       number: user.phoneNo,
       orgtype: user.orgType,
+      ownerId: null,
     });
   }
 
@@ -388,16 +402,108 @@ export class AuthService {
       name: user.name,
       number: user.number,
       orgtype: user.orgtype,
+      ownerId: user.ownerId,
     };
   }
 
-  private buildUserResponse(user: AuthUser) {
+  private buildUserResponse(user: AuthUser): AuthUserProfile {
     return {
       id: user.id,
       email: user.email,
       name: user.name,
       number: user.number,
       orgtype: user.orgtype,
+      ownerId: user.ownerId,
+    };
+  }
+
+  private async ensureTenantOwnerForOrgSignup(input: {
+    name: string;
+    email: string;
+    passwordHash: string | null;
+    phoneNo?: string | null;
+    orgType?: string | null;
+  }): Promise<string | null> {
+    const { name, email, passwordHash, phoneNo, orgType } = input;
+
+    if (!orgType) {
+      return null;
+    }
+
+    if (!passwordHash) {
+      return null;
+    }
+
+    const owner = await this.prisma.tenantOwner.upsert({
+      where: { email },
+      create: {
+        fullName: name,
+        email,
+        passwordHash,
+        phone: phoneNo || null,
+      },
+      update: {
+        fullName: name,
+        passwordHash,
+        phone: phoneNo || null,
+      },
+      select: { id: true },
+    });
+
+    return owner.id;
+  }
+
+  private async attachOwnerId(user: AuthUser): Promise<AuthUser> {
+    if (user.ownerId) {
+      return user;
+    }
+
+    if (!user.orgtype) {
+      return { ...user, ownerId: null };
+    }
+
+    const owner = await this.prisma.tenantOwner.findUnique({
+      where: { email: user.email },
+      select: { id: true },
+    });
+
+    if (owner) {
+      return {
+        ...user,
+        ownerId: owner.id,
+      };
+    }
+
+    // Backfill tenant owner for legacy users who already have org type.
+    const dbUser = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        name: true,
+        email: true,
+        password: true,
+        phoneNo: true,
+        orgType: true,
+      },
+    });
+
+    if (!dbUser) {
+      return {
+        ...user,
+        ownerId: null,
+      };
+    }
+
+    const backfilledOwnerId = await this.ensureTenantOwnerForOrgSignup({
+      name: dbUser.name,
+      email: dbUser.email,
+      passwordHash: dbUser.password,
+      phoneNo: dbUser.phoneNo,
+      orgType: dbUser.orgType,
+    });
+
+    return {
+      ...user,
+      ownerId: backfilledOwnerId,
     };
   }
 
@@ -457,14 +563,16 @@ export class AuthService {
     });
   }
 
-  private async issueTokensAndPersistSession(user: AuthUser) {
-    const accessToken = this.jwtService.sign(this.buildJwtPayload(user), {
+  private async issueTokensAndPersistSession(user: AuthUser): Promise<AuthTokenResponse> {
+    const userWithOwner = await this.attachOwnerId(user);
+
+    const accessToken = this.jwtService.sign(this.buildJwtPayload(userWithOwner), {
       secret: this.getAccessTokenSecret(),
       expiresIn: this.getAccessTokenExpiry(),
     });
 
     const refreshToken = this.jwtService.sign(
-      { sub: user.id, type: 'refresh' },
+      { sub: userWithOwner.id, type: 'refresh' },
       {
         secret: this.getRefreshTokenSecret(),
         expiresIn: this.getRefreshTokenExpiry(),
@@ -475,7 +583,7 @@ export class AuthService {
     const refreshTokenExpiry = this.decodeTokenExpiry(refreshToken);
 
     await this.prisma.user.update({
-      where: { id: user.id },
+      where: { id: userWithOwner.id },
       data: {
         refreshTokenHash: this.hashRefreshToken(refreshToken),
         refreshTokenExpiry,
@@ -488,7 +596,7 @@ export class AuthService {
       token_type: 'Bearer',
       access_token_expires_at: accessTokenExpiry.toISOString(),
       refresh_token_expires_at: refreshTokenExpiry.toISOString(),
-      user: this.buildUserResponse(user),
+      user: this.buildUserResponse(userWithOwner),
     };
   }
 }

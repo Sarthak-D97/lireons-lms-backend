@@ -3,7 +3,7 @@ import { IconArrowRight } from "@tabler/icons-react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import ClientOnly from "@/components/ui/ClientOnly";
+import { ClientOnly } from "@lireons/ui";
 import InfoText from "../../components/sections/InfoText";
 import React from "react";
 import {

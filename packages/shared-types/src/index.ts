@@ -1,2 +1,1 @@
-export * from './dtos';
-// Export interfaces here
+export * from './dtos/index.js';

@@ -3,6 +3,9 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from '@repo/auth';
 import { join } from 'path';
 import configuration from './config/configuration';
+import { SalesLeadModule } from './sales_lead/sales_lead.module';
+import { CoreSaasModule } from './core-saas/core-saas.module';
+import { DatabaseModule } from '@lireons/database';
 
 @Module({
   imports: [
@@ -15,6 +18,9 @@ import configuration from './config/configuration';
       ],
     }),
     AuthModule,
+    CoreSaasModule,
+    DatabaseModule,
+    SalesLeadModule,
   ],
 })
 export class AppModule { }
