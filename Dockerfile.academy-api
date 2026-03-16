@@ -1,0 +1,55 @@
+# =============================================================================
+# Lireons Academy API - AWS ECS/Fargate deployment
+# Build: docker build -f Dockerfile.academy-api -t lireons-academy-api .
+# =============================================================================
+
+ARG NODE_VERSION=20-alpine
+FROM node:${NODE_VERSION} AS base
+RUN apk add --no-cache openssl
+RUN corepack enable && corepack prepare pnpm@10.30.3 --activate
+ENV PNPM_HOME=/root/.local/share/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+WORKDIR /app
+
+# -----------------------------------------------------------------------------
+# Stage 1: Install deps
+# -----------------------------------------------------------------------------
+FROM base AS deps
+COPY package.json pnpm-workspace.yaml ./
+COPY packages/database/package.json ./packages/database/
+COPY apps/academy-api/package.json ./apps/academy-api/
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# -----------------------------------------------------------------------------
+# Stage 2: Build
+# -----------------------------------------------------------------------------
+FROM base AS builder
+RUN pnpm add -g turbo
+COPY . .
+RUN pnpm install --frozen-lockfile --ignore-scripts
+COPY packages/database/prisma ./packages/database/prisma
+RUN pnpm --filter @lireons/database run prisma:generate
+RUN turbo run build --filter=@lireons/academy-api
+
+# -----------------------------------------------------------------------------
+# Stage 3: Production runner
+# -----------------------------------------------------------------------------
+FROM base AS runner
+ENV NODE_ENV=production
+
+RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001 -G nodejs
+
+RUN mkdir -p /app/apps/academy-api /app/packages /app/node_modules
+WORKDIR /app
+
+COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nestjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nestjs:nodejs /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=builder --chown=nestjs:nodejs /app/apps/academy-api ./apps/academy-api
+COPY --from=builder --chown=nestjs:nodejs /app/packages ./packages
+
+USER nestjs
+
+EXPOSE 4002
+
+CMD ["node", "apps/academy-api/dist/main.js"]

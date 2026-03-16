@@ -1,0 +1,37 @@
+{
+  "name": "@repo/auth",
+  "version": "0.0.1",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@lireons/database": "workspace:*",
+    "@lireons/shared-types": "workspace:*",
+    "@nestjs/common": "catalog:nest10",
+    "@nestjs/config": "catalog:nest10",
+    "@nestjs/core": "catalog:nest10",
+    "@nestjs/jwt": "catalog:",
+    "@nestjs/passport": "catalog:",
+    "bcrypt": "catalog:",
+    "class-transformer": "catalog:",
+    "class-validator": "catalog:",
+    "nodemailer": "catalog:",
+    "passport": "catalog:",
+    "passport-jwt": "catalog:",
+    "passport-local": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:"
+  },
+  "devDependencies": {
+    "@lireons/typescript-config": "workspace:*",
+    "@types/bcrypt": "catalog:",
+    "@types/express": "catalog:",
+    "@types/nodemailer": "catalog:",
+    "@types/passport-jwt": "catalog:",
+    "@types/passport-local": "catalog:",
+    "typescript": "catalog:"
+  }
+}

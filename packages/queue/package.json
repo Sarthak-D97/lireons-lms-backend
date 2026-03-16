@@ -1,0 +1,21 @@
+{
+  "name": "@lireons/queue",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nestjs/bullmq": "catalog:",
+    "@nestjs/common": "catalog:nest10",
+    "@nestjs/core": "catalog:nest10",
+    "bullmq": "catalog:"
+  },
+  "devDependencies": {
+    "@lireons/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

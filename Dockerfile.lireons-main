@@ -1,0 +1,56 @@
+# =============================================================================
+# Lireons Main API - AWS ECS/Fargate deployment
+# Build: docker build -f Dockerfile.lireons-main -t lireons-main .
+# =============================================================================
+
+ARG NODE_VERSION=20-alpine
+FROM node:${NODE_VERSION} AS base
+RUN apk add --no-cache openssl
+RUN corepack enable && corepack prepare pnpm@10.30.3 --activate
+ENV PNPM_HOME=/root/.local/share/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+WORKDIR /app
+
+# -----------------------------------------------------------------------------
+# Stage 1: Install deps
+# -----------------------------------------------------------------------------
+FROM base AS deps
+COPY package.json pnpm-workspace.yaml ./
+COPY packages/database/package.json ./packages/database/
+COPY apps/lireons-main/package.json ./apps/lireons-main/
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# -----------------------------------------------------------------------------
+# Stage 2: Build
+# -----------------------------------------------------------------------------
+FROM base AS builder
+RUN pnpm add -g turbo
+COPY . .
+RUN pnpm install --frozen-lockfile --ignore-scripts
+COPY packages/database/prisma ./packages/database/prisma
+RUN pnpm --filter @lireons/database run prisma:generate
+RUN pnpm --filter @repo/auth rebuild bcrypt
+RUN turbo run build --filter=lireons-main
+
+# -----------------------------------------------------------------------------
+# Stage 3: Production runner
+# -----------------------------------------------------------------------------
+FROM base AS runner
+ENV NODE_ENV=production
+
+RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001 -G nodejs
+
+RUN mkdir -p /app/apps/lireons-main /app/packages /app/node_modules
+WORKDIR /app
+
+COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nestjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nestjs:nodejs /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=builder --chown=nestjs:nodejs /app/apps/lireons-main ./apps/lireons-main
+COPY --from=builder --chown=nestjs:nodejs /app/packages ./packages
+
+USER nestjs
+
+EXPOSE 4000
+
+CMD ["node", "apps/lireons-main/dist/main.js"]

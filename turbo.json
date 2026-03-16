@@ -1,0 +1,128 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "globalDependencies": [
+    "apps/*/.env*",
+    "packages/*/.env*"
+  ],
+  "globalEnv": [
+    "NODE_ENV",
+    "CI"
+  ],
+  "tasks": {
+    "topo": {
+      "dependsOn": [
+        "^topo"
+      ],
+      "outputs": []
+    },
+    "check-types": {
+      "dependsOn": [
+        "topo"
+      ],
+      "outputs": []
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "env": [
+        "DATABASE_URL",
+        "REDIS_HOST",
+        "REDIS_PORT",
+        "LIREONS_MAIN_PORT",
+        "CONTROL_PLANE_PORT",
+        "ACADEMY_API_PORT",
+        "PORT",
+        "JWT_SECRET",
+        "JWT_EXPIRES_IN",
+        "JWT_ACCESS_SECRET",
+        "JWT_ACCESS_EXPIRES_IN",
+        "JWT_REFRESH_SECRET",
+        "JWT_REFRESH_EXPIRES_IN",
+        "EMAIL_USER",
+        "EMAIL_PASSWORD",
+        "OTP_SECRET",
+        "FRONTEND_URL",
+        "NEST_PUBLIC_API_URL",
+        "NEXTAUTH_SECRET",
+        "NEXTAUTH_URL",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "FACEBOOK_ID",
+        "FACEBOOK_SECRET",
+        "GITHUB_ID",
+        "GITHUB_SECRET",
+        "LINKEDIN_CLIENT_ID",
+        "LINKEDIN_CLIENT_SECRET"
+      ]
+    },
+    "start:dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true,
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "env": [
+        "DATABASE_URL",
+        "REDIS_HOST",
+        "REDIS_PORT",
+        "LIREONS_MAIN_PORT",
+        "CONTROL_PLANE_PORT",
+        "ACADEMY_API_PORT",
+        "PORT",
+        "JWT_SECRET",
+        "JWT_EXPIRES_IN",
+        "JWT_ACCESS_SECRET",
+        "JWT_ACCESS_EXPIRES_IN",
+        "JWT_REFRESH_SECRET",
+        "JWT_REFRESH_EXPIRES_IN",
+        "EMAIL_USER",
+        "EMAIL_PASSWORD",
+        "OTP_SECRET",
+        "FRONTEND_URL",
+        "NEST_PUBLIC_API_URL",
+        "NEXTAUTH_SECRET",
+        "NEXTAUTH_URL",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "FACEBOOK_ID",
+        "FACEBOOK_SECRET",
+        "GITHUB_ID",
+        "GITHUB_SECRET",
+        "LINKEDIN_CLIENT_ID",
+        "LINKEDIN_CLIENT_SECRET"
+      ]
+    },
+    "@lireons/database#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "src/generated/prisma/**"],
+      "inputs": ["$TURBO_DEFAULT$", "prisma/**", ".env*"],
+      "env": ["DATABASE_URL"]
+    },
+    "lireons-lms-frontend#build": {
+      "dependsOn": ["^build"],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*"
+      ],
+      "env": [
+        "NODE_ENV",
+        "NEST_PUBLIC_API_URL",
+        "NEXTAUTH_SECRET",
+        "NEXTAUTH_URL",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "FACEBOOK_ID",
+        "FACEBOOK_SECRET",
+        "GITHUB_ID",
+        "GITHUB_SECRET",
+        "LINKEDIN_CLIENT_ID",
+        "LINKEDIN_CLIENT_SECRET"
+      ]
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "name": "@lireons/database",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "pnpm run prisma:generate && tsc",
+    "prisma:generate": "prisma generate",
+    "prepare": "pnpm run prisma:generate",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nestjs/common": "catalog:nest10",
+    "@nestjs/core": "catalog:nest10",
+    "@prisma/adapter-pg": "catalog:",
+    "@prisma/client": "catalog:",
+    "pg": "catalog:",
+    "reflect-metadata": "catalog:",
+    "rxjs": "catalog:"
+  },
+  "devDependencies": {
+    "@lireons/typescript-config": "workspace:*",
+    "dotenv": "catalog:",
+    "prisma": "catalog:",
+    "typescript": "catalog:"
+  }
+}

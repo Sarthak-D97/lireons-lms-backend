@@ -1,0 +1,9 @@
+import { Module } from '@nestjs/common';
+import { TenantModule } from './tenant/tenant.module';
+
+@Module({
+  imports: [TenantModule],
+  controllers: [],
+  providers: [],
+})
+export class CoreSaasModule {}
