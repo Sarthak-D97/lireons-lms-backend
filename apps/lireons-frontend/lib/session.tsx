@@ -3,7 +3,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { AuthTokenResponse } from "@lireons/shared-types";
 
-const API_URL = process.env.NEST_PUBLIC_API_URL || "http://localhost:4000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const STORAGE_KEY = "lireons_auth_session";
 const AUTH_CHANGED_EVENT = "lireons-auth-changed";
 

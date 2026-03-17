@@ -37,14 +37,14 @@ export default function PricingPage() {
   return (
     <div className="min-h-screen w-full bg-white dark:bg-slate-950 text-neutral-600 dark:text-slate-200 selection:bg-indigo-500/30 relative overflow-hidden font-sans transition-colors duration-300">
       <div className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80 pointer-events-none">
-        <div className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-indigo-300 to-purple-300 dark:from-indigo-600 dark:to-purple-600 opacity-40 dark:opacity-20 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem]"></div>
+        <div className="relative left-[calc(50%-11rem)] aspect-1155/678 w-144.5 -translate-x-1/2 rotate-30 bg-linear-to-tr from-indigo-300 to-purple-300 dark:from-indigo-600 dark:to-purple-600 opacity-40 dark:opacity-20 sm:left-[calc(50%-30rem)] sm:w-288.75"></div>
       </div>
 
       <div className="px-6 py-24 sm:py-32 lg:px-8 text-center relative z-10">
         <h2 className="text-base font-semibold leading-7 text-indigo-600 dark:text-indigo-400 transition-colors">Pricing for Creators</h2>
         <p className="mt-2 text-3xl font-bold tracking-tight text-neutral-900 dark:text-white sm:text-5xl transition-colors">
           Your Academy. <br />
-          <span className={`${merienda.className} text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-orange-500 dark:from-indigo-400 dark:to-orange-400`}>
+          <span className={`${merienda.className} text-transparent bg-clip-text bg-linear-to-r from-indigo-600 to-orange-500 dark:from-indigo-400 dark:to-orange-400`}>
             100% Your Revenue.
           </span>
         </p>
@@ -61,7 +61,7 @@ export default function PricingPage() {
                 <span
                     className={cn(
                         isYearly ? "translate-x-6" : "translate-x-0",
-                        "pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out -mt-[2px] -ml-[2px]"
+                        "pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out -mt-0.5 -ml-0.5"
                     )}
                 />
             </button>
@@ -225,7 +225,7 @@ const PricingCard = ({
                 </span>
             )}
         </div>
-        <p className="mt-4 text-sm leading-6 text-neutral-600 dark:text-slate-400 min-h-[48px] transition-colors">{description}</p>
+        <p className="mt-4 text-sm leading-6 text-neutral-600 dark:text-slate-400 min-h-12 transition-colors">{description}</p>
         <div className="mt-6 flex items-baseline gap-x-1">
           <span className="text-4xl font-bold tracking-tight text-neutral-900 dark:text-white transition-colors">{price}</span>
           <span className="text-sm font-semibold leading-6 text-neutral-500 dark:text-slate-400 transition-colors">{period}</span>
@@ -242,7 +242,7 @@ const PricingCard = ({
       <button
         onClick={onClick}
         className={cn(
-          "mt-8 block w-full rounded-md px-3 py-3 text-center text-sm font-semibold leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-all duration-200",
+          "mt-8 block w-full rounded-md px-3 py-3 text-center text-sm font-semibold leading-6 focus-visible:outline-2 focus-visible:outline-offset-2 transition-all duration-200",
           featured
             ? "bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-500/25"
             : "bg-gray-100 dark:bg-slate-800 text-neutral-900 dark:text-white hover:bg-gray-200 dark:hover:bg-slate-700 ring-1 ring-inset ring-gray-200 dark:ring-slate-600"

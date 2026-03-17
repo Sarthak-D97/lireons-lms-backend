@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 import type { CreateTenantBody } from '@lireons/shared-types';
 
 export class CreateTenantDto implements CreateTenantBody {
@@ -18,6 +18,10 @@ export class CreateTenantDto implements CreateTenantBody {
   @IsString()
   @IsOptional()
   customDomain?: string;
+
+  @IsUUID()
+  @IsOptional()
+  planId?: string;
 
   @IsString()
   @IsOptional()

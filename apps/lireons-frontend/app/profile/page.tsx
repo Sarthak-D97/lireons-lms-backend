@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useSession, signOut } from "@/lib/session";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -22,6 +22,8 @@ const merienda = Merienda({
     display: "swap",
     variable: "--font-merienda",
 });
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 // 2. Define Interfaces
 interface UserDatas {
@@ -61,6 +63,19 @@ const formatDate = (dateString: string | Date | undefined | null) => {
 export default function ProfilePage() {
     const { data: sessionData, status } = useSession();
     const router = useRouter();
+    const [tenantConfigLoading, setTenantConfigLoading] = useState(false);
+    const [brandingSaving, setBrandingSaving] = useState(false);
+    const [logoUploading, setLogoUploading] = useState(false);
+    const [iconUploading, setIconUploading] = useState(false);
+    const [brandingMessage, setBrandingMessage] = useState<string | null>(null);
+    const [brandingError, setBrandingError] = useState<string | null>(null);
+    const [branding, setBranding] = useState({
+        serviceName: "",
+        logoUrl: "",
+        appName: "",
+        packageName: "",
+        appIconUrl: "",
+    });
 
     // Redirect if unauthenticated
     useEffect(() => {
@@ -68,6 +83,44 @@ export default function ProfilePage() {
             router.push("/login");
         }
     }, [status, router]);
+
+    useEffect(() => {
+        const loadTenantConfig = async () => {
+            const backendToken = (sessionData as { backendToken?: string } | null)?.backendToken;
+            if (status !== "authenticated" || !backendToken) {
+                return;
+            }
+
+            setTenantConfigLoading(true);
+            try {
+                const response = await fetch(`${API_URL}/api/tenant/configuration`, {
+                    headers: {
+                        Authorization: `Bearer ${backendToken}`,
+                    },
+                });
+
+                const data = await response.json().catch(() => null);
+                if (!response.ok) {
+                    throw new Error(data?.error?.message || data?.message || "Failed to load tenant branding.");
+                }
+
+                setBranding((prev) => ({
+                    ...prev,
+                    serviceName: data?.settings?.serviceName || prev.serviceName,
+                    logoUrl: data?.settings?.logoUrl || "",
+                    appName: data?.appSettings?.appName || prev.appName,
+                    packageName: data?.appSettings?.packageName || prev.packageName,
+                    appIconUrl: data?.appSettings?.appIconUrl || "",
+                }));
+            } catch (error) {
+                setBrandingError(error instanceof Error ? error.message : "Failed to load tenant branding.");
+            } finally {
+                setTenantConfigLoading(false);
+            }
+        };
+
+        void loadTenantConfig();
+    }, [sessionData, status]);
 
     // Loading State
     if (status === "loading") {
@@ -92,6 +145,125 @@ export default function ProfilePage() {
         joinedDate: new Date(), 
     };
 
+    const backendToken = (sessionData as { backendToken?: string } | null)?.backendToken;
+
+    const handleBrandingUpload = async (
+        file: File,
+        type: "logo" | "app-icon",
+    ) => {
+        if (!backendToken) {
+            setBrandingError("Your login session is missing or expired. Please login again.");
+            return;
+        }
+        if (!file.type.startsWith("image/")) {
+            setBrandingError("Only image files are allowed for uploads.");
+            return;
+        }
+
+        const isLogo = type === "logo";
+        setBrandingError(null);
+        setBrandingMessage(null);
+        if (isLogo) {
+            setLogoUploading(true);
+        } else {
+            setIconUploading(true);
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const endpoint = isLogo
+                ? `${API_URL}/api/tenant/configuration/upload-logo`
+                : `${API_URL}/api/tenant/configuration/upload-app-icon`;
+
+            const response = await fetch(endpoint, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${backendToken}`,
+                },
+                body: formData,
+            });
+
+            const data = await response.json().catch(() => null);
+            if (!response.ok) {
+                throw new Error(data?.error?.message || data?.message || "Upload failed.");
+            }
+
+            const uploadedUrl = isLogo ? data?.logoUrl : data?.appIconUrl;
+            if (!uploadedUrl) {
+                throw new Error("Upload succeeded but file URL was not returned.");
+            }
+
+            setBranding((prev) => ({
+                ...prev,
+                ...(isLogo ? { logoUrl: uploadedUrl } : { appIconUrl: uploadedUrl }),
+            }));
+            setBrandingMessage(isLogo ? "Logo uploaded successfully." : "App icon uploaded successfully.");
+        } catch (error) {
+            setBrandingError(error instanceof Error ? error.message : "Upload failed.");
+        } finally {
+            if (isLogo) {
+                setLogoUploading(false);
+            } else {
+                setIconUploading(false);
+            }
+        }
+    };
+
+    const handleSaveBranding = async () => {
+        if (!backendToken) {
+            setBrandingError("Your login session is missing or expired. Please login again.");
+            return;
+        }
+        if (!branding.serviceName.trim()) {
+            setBrandingError("Service name is required.");
+            return;
+        }
+        if (!branding.appName.trim() || !branding.packageName.trim()) {
+            setBrandingError("App name and package name are required.");
+            return;
+        }
+
+        setBrandingSaving(true);
+        setBrandingError(null);
+        setBrandingMessage(null);
+
+        try {
+            const payload = {
+                settings: {
+                    serviceName: branding.serviceName.trim(),
+                    logoUrl: branding.logoUrl.trim() || undefined,
+                },
+                appSettings: {
+                    appName: branding.appName.trim(),
+                    packageName: branding.packageName.trim(),
+                    appIconUrl: branding.appIconUrl.trim() || undefined,
+                },
+            };
+
+            const response = await fetch(`${API_URL}/api/tenant/configuration`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${backendToken}`,
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const data = await response.json().catch(() => null);
+            if (!response.ok) {
+                throw new Error(data?.error?.message || data?.message || "Failed to save branding settings.");
+            }
+
+            setBrandingMessage("Branding settings saved.");
+        } catch (error) {
+            setBrandingError(error instanceof Error ? error.message : "Failed to save branding settings.");
+        } finally {
+            setBrandingSaving(false);
+        }
+    };
+
     return (
         <div className="min-h-screen w-full bg-gray-50 dark:bg-slate-950 transition-colors duration-300 py-12 px-4 sm:px-6 lg:px-8">
             <div className="max-w-4xl mx-auto space-y-8">
@@ -110,7 +282,7 @@ export default function ProfilePage() {
                 <div className="bg-white dark:bg-slate-900 rounded-3xl border border-gray-200 dark:border-slate-800 overflow-hidden shadow-sm dark:shadow-xl transition-colors">
                     
                     {/* Cover Banner */}
-                    <div className="h-32 md:h-48 w-full bg-gradient-to-r from-cyan-500 to-blue-600 relative">
+                    <div className="h-32 md:h-48 w-full bg-linear-to-r from-cyan-500 to-blue-600 relative">
                         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
                     </div>
 
@@ -199,6 +371,123 @@ export default function ProfilePage() {
                                 value={formatDate(userData.joinedDate)}
                                 fullWidth
                             />
+                        </div>
+
+                        <div className="h-px w-full bg-gray-100 dark:bg-slate-800 my-8"></div>
+
+                        <div className="space-y-4">
+                            <h3 className="text-xl font-semibold text-neutral-900 dark:text-white">Branding Assets</h3>
+
+                            {tenantConfigLoading ? (
+                                <p className="text-sm text-neutral-500 dark:text-slate-400">Loading branding settings...</p>
+                            ) : null}
+
+                            {brandingError ? (
+                                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+                                    {brandingError}
+                                </div>
+                            ) : null}
+
+                            {brandingMessage ? (
+                                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                    {brandingMessage}
+                                </div>
+                            ) : null}
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-neutral-700 dark:text-slate-300 mb-1">Service Name</label>
+                                    <input
+                                        type="text"
+                                        value={branding.serviceName}
+                                        onChange={(e) => setBranding((prev) => ({ ...prev, serviceName: e.target.value }))}
+                                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-neutral-700 dark:text-slate-300 mb-1">App Name</label>
+                                    <input
+                                        type="text"
+                                        value={branding.appName}
+                                        onChange={(e) => setBranding((prev) => ({ ...prev, appName: e.target.value }))}
+                                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-neutral-700 dark:text-slate-300 mb-1">Organization Logo URL</label>
+                                    <input
+                                        type="url"
+                                        value={branding.logoUrl}
+                                        onChange={(e) => setBranding((prev) => ({ ...prev, logoUrl: e.target.value }))}
+                                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                                    />
+                                    <label className="mt-2 inline-block cursor-pointer rounded-md border border-gray-300 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-neutral-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800">
+                                        {logoUploading ? "Uploading..." : "Upload Logo"}
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            disabled={logoUploading}
+                                            onChange={(event) => {
+                                                const selected = event.target.files?.[0];
+                                                if (selected) {
+                                                    void handleBrandingUpload(selected, "logo");
+                                                }
+                                                event.currentTarget.value = "";
+                                            }}
+                                        />
+                                    </label>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-neutral-700 dark:text-slate-300 mb-1">App Icon URL</label>
+                                    <input
+                                        type="url"
+                                        value={branding.appIconUrl}
+                                        onChange={(e) => setBranding((prev) => ({ ...prev, appIconUrl: e.target.value }))}
+                                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                                    />
+                                    <label className="mt-2 inline-block cursor-pointer rounded-md border border-gray-300 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-neutral-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800">
+                                        {iconUploading ? "Uploading..." : "Upload App Icon"}
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            disabled={iconUploading}
+                                            onChange={(event) => {
+                                                const selected = event.target.files?.[0];
+                                                if (selected) {
+                                                    void handleBrandingUpload(selected, "app-icon");
+                                                }
+                                                event.currentTarget.value = "";
+                                            }}
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-neutral-700 dark:text-slate-300 mb-1">Package Name</label>
+                                <input
+                                    type="text"
+                                    value={branding.packageName}
+                                    onChange={(e) => setBranding((prev) => ({ ...prev, packageName: e.target.value.toLowerCase().replace(/[^a-z0-9.]/g, "") }))}
+                                    className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                                    placeholder="com.yourcompany.appname"
+                                />
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleSaveBranding}
+                                disabled={brandingSaving}
+                                className="inline-flex items-center justify-center rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-60"
+                            >
+                                {brandingSaving ? "Saving..." : "Save Branding"}
+                            </button>
                         </div>
                     </div>
                 </div>

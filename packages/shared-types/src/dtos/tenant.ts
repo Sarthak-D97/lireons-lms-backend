@@ -3,6 +3,7 @@ export interface CreateTenantBody {
   orgType?: string;
   subdomain: string;
   customDomain?: string;
+  planId?: string;
   status?: string;
   dbRoutingKey?: string;
   phone?: string;

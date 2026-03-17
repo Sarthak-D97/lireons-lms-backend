@@ -21,6 +21,7 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1010.0",
     "@lireons/database": "workspace:*",
     "@lireons/shared-types": "workspace:*",
     "@nestjs/common": "catalog:nest11",
@@ -43,6 +44,7 @@
     "@nestjs/testing": "catalog:nest11",
     "@types/express": "catalog:",
     "@types/jest": "catalog:",
+    "@types/multer": "^2.1.0",
     "@types/node": "catalog:",
     "@types/supertest": "catalog:",
     "eslint": "catalog:",

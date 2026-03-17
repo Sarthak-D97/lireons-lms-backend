@@ -84,7 +84,8 @@ export class TenantConfigurationDto {
 
 	@ValidateNested()
 	@Type(() => OrganizationDesignDto)
-	design: OrganizationDesignDto;
+	@IsOptional()
+	design?: OrganizationDesignDto;
 
 	@ValidateNested()
 	@Type(() => OrganizationAppSettingsDto)

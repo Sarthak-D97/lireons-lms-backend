@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PRISMA_SERVICE } from '@lireons/database';
 import { TenantService } from './tenant.service';
+import { S3UploadService } from './s3-upload.service';
 
 describe('TenantService', () => {
   let service: TenantService;
@@ -19,6 +20,12 @@ describe('TenantService', () => {
               update: jest.fn(),
               delete: jest.fn(),
             },
+          },
+        },
+        {
+          provide: S3UploadService,
+          useValue: {
+            uploadPublicFile: jest.fn(),
           },
         },
       ],
