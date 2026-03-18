@@ -22,7 +22,7 @@ Add the following environment variables to your frontend `.env.local` file:
 
 ```bash
 # Razorpay Configuration
-NEXT_PUBLIC_RAZORPAY_KEY=your_razorpay_key_id
+RAZORPAY_KEY_ID=your_razorpay_key_id
 NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
 ```
 

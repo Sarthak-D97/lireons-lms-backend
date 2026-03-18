@@ -9,6 +9,7 @@ import {
 	ParseUUIDPipe,
 	Patch,
 	Post,
+	Query,
 	Request,
 	UploadedFile,
 	UnauthorizedException,
@@ -21,6 +22,7 @@ import { StartCustomDomainDto } from './dto/start-custom-domain.dto';
 import { TenantConfigurationDto } from './dto/tenant-configuration.dto';
 import { UpdateTenantConfigurationDto } from './dto/update-tenant-configuration.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
+import { InvoiceListQueryDto } from './dto/invoice-list-query.dto';
 import { TenantService } from './tenant.service';
 import type { JwtAuthUser } from '@lireons/shared-types';
 import { JwtAuthGuard } from '@repo/auth';
@@ -100,13 +102,31 @@ export class TenantController {
 	}
 
 	@Get()
-	findAll() {
+	findAll(): Promise<unknown> {
 		return this.tenantService.findAll();
 	}
 
 	@Get('plans')
-	getActivePlans() {
+	getActivePlans(): Promise<unknown> {
 		return this.tenantService.getActivePlans();
+	}
+
+	@Get('invoices')
+	listOwnerInvoices(
+		@Request() req: { user: JwtAuthUser },
+		@Query() query: InvoiceListQueryDto,
+	): Promise<unknown> {
+		const ownerId = this.requireOwnerId(req);
+		return this.tenantService.listOwnerInvoices(ownerId, query);
+	}
+
+	@Get('invoices/:invoiceId')
+	getOwnerInvoiceById(
+		@Request() req: { user: JwtAuthUser },
+		@Param('invoiceId', new ParseUUIDPipe()) invoiceId: string,
+	) {
+		const ownerId = this.requireOwnerId(req);
+		return this.tenantService.getOwnerInvoiceById(ownerId, invoiceId);
 	}
 
 	@Post('custom-domain/start')

@@ -1,6 +1,6 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "@/lib/session";
 import { Building2, Check, Copy, Globe, MapPin, CheckCircle2, ChevronRight, ChevronLeft, Palette, Smartphone, CreditCard, Server, LayoutList } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ const COUNTRY_CODES = ["+91", "+1", "+44", "+61", "+971"];
 
 type Plan = {
   id: string;
+  slug?: string | null;
   name: string;
   billingCycle: string;
   price: number | string;
@@ -17,6 +18,65 @@ type Plan = {
   maxStorageGb: number;
   hasWhiteLabelApp: boolean;
 };
+
+type PricingPlanCard = {
+  slug: string;
+  name: string;
+  badge: string;
+  description: string;
+  priceLabel: string;
+  features: string[];
+};
+
+const PRICING_PLAN_CARDS: PricingPlanCard[] = [
+  {
+    slug: "tier_shared",
+    name: "Shared Infrastructure",
+    badge: "For Small Academies",
+    description: "Launch fast with our shared, highly optimized cloud architecture.",
+    priceLabel: "₹5,000/month",
+    features: [
+      "Up to 2,000 Students",
+      "Course & Mock Test Engine",
+      "Razorpay & Stripe Integration",
+      "Basic Web DRM",
+      "Managed Infrastructure",
+      "Email Support",
+    ],
+  },
+  {
+    slug: "tier_dedicated",
+    name: "Dedicated Cloud",
+    badge: "Most Popular",
+    description: "High performance with dedicated servers for serious educators.",
+    priceLabel: "₹25,000/month",
+    features: [
+      "Up to 50,000 Students",
+      "Dedicated Server/VPS",
+      "Bank-Grade Video DRM",
+      "White-labeled Android App",
+      "Custom Integrations",
+      "Priority 24/7 Support",
+      "99.9% Uptime SLA",
+    ],
+  },
+  {
+    slug: "tier_enterprise",
+    name: "White-Label Enterprise",
+    badge: "For Large Institutions",
+    description: "Complete brand dominance with iOS and massive scale.",
+    priceLabel: "₹75,000/month",
+    features: [
+      "Unlimited Students",
+      "Data in your own AWS account",
+      "White-labeled iOS App",
+      "Multiple Campus Support",
+      "Custom Analytics Dashboard",
+      "On-premise deployment option",
+      "Dedicated Account Manager",
+    ],
+  },
+];
 
 type DomainSetupResponse = {
   customDomain: string;
@@ -42,8 +102,48 @@ type CreateTenantResult = {
   };
 };
 
+type PaymentInitiationResponse = {
+  orderId: string;
+  keyId?: string;
+  amount?: number;
+  currency?: string;
+};
+
+type RazorpayHandlerResponse = {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+};
+
+type RazorpayCheckoutOptions = {
+  key?: string;
+  amount: number;
+  currency: string;
+  order_id: string;
+  name: string;
+  description: string;
+  handler: (response: RazorpayHandlerResponse) => Promise<void>;
+  theme?: {
+    color?: string;
+  };
+  modal?: {
+    ondismiss?: () => void;
+  };
+};
+
+interface RazorpayCheckout {
+  open(): void;
+}
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayCheckoutOptions) => RazorpayCheckout;
+  }
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session, status } = useSession();
 
   const [step, setStep] = useState(1);
@@ -61,12 +161,11 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [selectedPlanSlug, setSelectedPlanSlug] = useState("tier_shared");
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [domainSetup, setDomainSetup] = useState<DomainSetupResponse | null>(null);
   const [domainVerifyLoading, setDomainVerifyLoading] = useState(false);
   const [copiedDnsField, setCopiedDnsField] = useState<string | null>(null);
-  const [skippedPayment, setSkippedPayment] = useState(false);
   const [createdTenant, setCreatedTenant] = useState<CreateTenantResult | null>(null);
   const [deployLoading, setDeployLoading] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
@@ -85,7 +184,66 @@ export default function OnboardingPage() {
     maxDevicesPerUser: 2,
   });
 
-  const selectedPlan = plans.find((plan) => plan.id === selectedPlanId);
+  const selectedPlan = PRICING_PLAN_CARDS.find(
+    (plan) => plan.slug === selectedPlanSlug,
+  );
+  const selectedBackendPlan = plans.find(
+    (plan) => plan.slug?.trim().toLowerCase() === selectedPlanSlug,
+  );
+  const preferredPlanSlug = searchParams.get("plan")?.trim().toLowerCase() || "";
+
+  const fetchPlans = useCallback(async (token: string, withSpinner: boolean = true) => {
+    if (!token) return;
+
+    if (withSpinner) {
+      setLoadingPlans(true);
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/tenant/plans`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        console.error(`Failed to fetch plans: ${response.status}`);
+        throw new Error("Failed to fetch plans");
+      }
+
+      const data = (await response.json()) as Plan[];
+      setPlans(data);
+      setSelectedPlanSlug((prev) => {
+        if (data.length === 0) {
+          return preferredPlanSlug || prev || "tier_shared";
+        }
+
+        const availableSlugs = new Set(
+          data
+            .map((plan) => plan.slug?.trim().toLowerCase())
+            .filter((slug): slug is string => Boolean(slug)),
+        );
+
+        if (preferredPlanSlug) {
+          if (availableSlugs.has(preferredPlanSlug)) return preferredPlanSlug;
+        }
+
+        if (prev && availableSlugs.has(prev)) return prev;
+
+        const firstPricingSlug = PRICING_PLAN_CARDS.find((plan) =>
+          availableSlugs.has(plan.slug),
+        )?.slug;
+        return firstPricingSlug || "tier_shared";
+      });
+    } catch (err) {
+      console.error("Error loading plans:", err);
+      setPlans([]);
+    } finally {
+      if (withSpinner) {
+        setLoadingPlans(false);
+      }
+    }
+  }, [preferredPlanSlug]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -94,38 +252,10 @@ export default function OnboardingPage() {
   }, [status, router]);
 
   useEffect(() => {
-    const loadPlans = async () => {
-      if (status !== "authenticated" || !session?.backendToken) return;
-
-      setLoadingPlans(true);
-      try {
-        const response = await fetch(`${API_URL}/api/tenant/plans`, {
-          headers: {
-            Authorization: `Bearer ${session.backendToken}`,
-          },
-        });
-
-        if (!response.ok) {
-          console.error(`Failed to fetch plans: ${response.status}`);
-          throw new Error("Failed to fetch plans");
-        }
-
-        const data = (await response.json()) as Plan[];
-        console.log("Loaded plans:", data);
-        setPlans(data);
-        if (data.length > 0) {
-          setSelectedPlanId(data[0].id);
-        }
-      } catch (err) {
-        console.error("Error loading plans:", err);
-        setPlans([]);
-      } finally {
-        setLoadingPlans(false);
-      }
-    };
-
-    loadPlans();
-  }, [session?.backendToken, status]);
+    if (status === "authenticated" && session?.backendToken) {
+      void fetchPlans(session.backendToken, true);
+    }
+  }, [session?.backendToken, status, fetchPlans]);
 
   useEffect(() => {
     if (formData.orgName && !formData.subdomain) {
@@ -134,7 +264,7 @@ export default function OnboardingPage() {
         subdomain: prev.orgName.toLowerCase().replace(/[^a-z0-9]/g, '')
       }));
     }
-  }, [formData.orgName]);
+  }, [formData.orgName, formData.subdomain]);
 
   useEffect(() => {
     if (step !== 6 || !formData.customDomain.trim() || !session?.backendToken) {
@@ -187,11 +317,6 @@ export default function OnboardingPage() {
   const handleBack = () => {
     setError(null);
     setStep(step - 1);
-  };
-
-  const handleSkipPayment = () => {
-    setSkippedPayment(true);
-    setStep(4);
   };
 
   const startCustomDomainSetup = async (domainInput: string) => {
@@ -504,8 +629,13 @@ export default function OnboardingPage() {
       return;
     }
 
-    if (!selectedPlanId) {
-      setError("Please select a plan before proceeding to payment.");
+    if (!selectedPlanSlug) {
+      setError("Please select one of the 3 available plans before proceeding.");
+      return;
+    }
+
+    if (!selectedBackendPlan?.id) {
+      setError("Plans are syncing. Please wait a moment and click Refresh Plans.");
       return;
     }
 
@@ -514,13 +644,133 @@ export default function OnboardingPage() {
     setSuccess(null);
 
     try {
+      const loadRazorpayScript = async () => {
+        if (window.Razorpay) return;
+
+        await new Promise<void>((resolve, reject) => {
+          const existing = document.querySelector(
+            'script[data-razorpay-checkout]'
+          ) as HTMLScriptElement | null;
+
+          if (existing) {
+            existing.addEventListener('load', () => resolve(), { once: true });
+            existing.addEventListener(
+              'error',
+              () => reject(new Error('Failed to load Razorpay script')),
+              { once: true },
+            );
+            return;
+          }
+
+          const script = document.createElement('script');
+          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          script.async = true;
+          script.dataset.razorpayCheckout = 'true';
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error('Failed to load Razorpay script'));
+          document.body.appendChild(script);
+        });
+      };
+
+      const openRazorpayCheckout = async (invoiceId: string) => {
+        const initiateResponse = await fetch(`${API_URL}/api/core-saas/payments/initiate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.backendToken}`,
+          },
+          body: JSON.stringify({ invoiceId }),
+        });
+
+        if (!initiateResponse.ok) {
+          const data = await initiateResponse.json().catch(() => null);
+          const message = data?.error?.message || data?.message || 'Failed to initiate payment';
+          throw new Error(Array.isArray(message) ? message.join(', ') : message);
+        }
+
+        const paymentData = (await initiateResponse.json()) as PaymentInitiationResponse;
+
+        if (!paymentData.orderId) {
+          throw new Error('Payment order was not created. Please try again.');
+        }
+
+        await loadRazorpayScript();
+
+        if (!window.Razorpay) {
+          throw new Error('Razorpay script is not loaded. Please refresh and try again.');
+        }
+
+        const checkoutKey = paymentData.keyId || process.env.RAZORPAY_KEY_ID;
+        const checkoutAmount = Math.round(Number(paymentData.amount || 0) * 100);
+
+        if (!checkoutKey) {
+          throw new Error('Razorpay key is missing. Please contact support.');
+        }
+
+        if (!checkoutAmount || checkoutAmount <= 0) {
+          throw new Error('Invalid payment amount. Please try again.');
+        }
+
+        await new Promise<void>((resolve, reject) => {
+          const options: RazorpayCheckoutOptions = {
+            key: checkoutKey,
+            amount: checkoutAmount,
+            currency: paymentData.currency || 'INR',
+            order_id: paymentData.orderId,
+            name: 'Lireons',
+            description: `Onboarding payment - ${invoiceId}`,
+            handler: async (response: RazorpayHandlerResponse) => {
+              try {
+                const verifyResponse = await fetch(`${API_URL}/api/core-saas/payments/callback`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${session.backendToken}`,
+                  },
+                  body: JSON.stringify({
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_signature: response.razorpay_signature,
+                  }),
+                });
+
+                if (!verifyResponse.ok) {
+                  const data = await verifyResponse.json().catch(() => null);
+                  const message = data?.error?.message || data?.message || 'Payment verification failed';
+                  throw new Error(Array.isArray(message) ? message.join(', ') : message);
+                }
+
+                resolve();
+              } catch (verificationError) {
+                reject(
+                  verificationError instanceof Error
+                    ? verificationError
+                    : new Error('Payment verification failed'),
+                );
+              }
+            },
+            theme: {
+              color: '#4f46e5',
+            },
+            modal: {
+              ondismiss: () => {
+                reject(new Error('Payment was cancelled. Please complete payment to continue.'));
+              },
+            },
+          };
+
+          const razorpayInstance = new window.Razorpay!(options);
+          razorpayInstance.open();
+        });
+      };
+
       const normalizedPhone = formData.phone.replace(/\D/g, "");
       const payload = {
         orgName: formData.orgName.trim(),
         orgType: formData.orgType,
         subdomain: formData.subdomain.trim().toLowerCase(),
         customDomain: formData.customDomain.trim() || undefined,
-        planId: selectedPlanId,
+        planId: selectedBackendPlan.id,
         status: "PENDING",
         phone: normalizedPhone ? `${countryCode}${normalizedPhone}` : undefined,
         billingAddress: formData.billingAddress.trim() || undefined,
@@ -545,15 +795,23 @@ export default function OnboardingPage() {
       const tenantData = (await response.json()) as CreateTenantResult;
       setCreatedTenant(tenantData);
 
+      const invoiceId = tenantData.payment?.invoiceId;
+
+      if (!invoiceId) {
+        throw new Error('Payment invoice was not generated. Please try again.');
+      }
+
+      await openRazorpayCheckout(invoiceId);
+
       if (formData.customDomain.trim()) {
         await startCustomDomainSetup(formData.customDomain);
       }
 
       if (formData.customDomain.trim()) {
-        setSuccess("Payment intent created. Proceed to DNS configuration.");
+        setSuccess("Payment successful. Proceed to DNS configuration.");
         setTimeout(() => { setSuccess(null); setStep(6); }, 1000);
       } else {
-        setSuccess("Payment intent created. Proceeding to review...");
+        setSuccess("Payment successful. Proceeding to review...");
         setTimeout(() => { setSuccess(null); setStep(6); }, 1000);
       }
     } catch (submitError) {
@@ -791,74 +1049,28 @@ export default function OnboardingPage() {
                 <div className="border-b border-slate-200 dark:border-slate-800 pb-4 flex justify-between items-center">
                   <div>
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center"><CreditCard className="w-5 h-5 mr-2 text-indigo-500"/> Choose Your Plan</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Select a plan that fits your academy&apos;s needs.</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Choose any one of the 3 default plans to continue onboarding.</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLoadingPlans(true);
-                      const loadPlans = async () => {
-                        if (!session?.backendToken) return;
-                        try {
-                          const response = await fetch(`${API_URL}/api/tenant/plans`, {
-                            headers: { Authorization: `Bearer ${session.backendToken}` },
-                          });
-                          if (response.ok) {
-                            const data = (await response.json()) as Plan[];
-                            setPlans(data);
-                            if (data.length > 0 && !selectedPlanId) {
-                              setSelectedPlanId(data[0].id);
-                            }
-                          }
-                        } catch (err) {
-                          console.error("Error reloading plans:", err);
-                        } finally {
-                          setLoadingPlans(false);
-                        }
-                      };
-                      loadPlans();
-                    }}
-                    disabled={loadingPlans}
-                    className="px-3 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {loadingPlans ? "⏳ Refreshing..." : "🔄 Refresh Plans"}
-                  </button>
                 </div>
 
                 {loadingPlans ? (
                   <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-6 flex justify-center">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
                   </div>
-                ) : plans.length === 0 ? (
-                  <div className="rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 p-6 space-y-3">
-                    <p className="text-sm text-amber-700 dark:text-amber-300">
-                      ⚠️ No active plans found. You need to create at least one plan before proceeding.
-                    </p>
-                    <a
-                      href="/app/billing"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
-                    >
-                      Create Plans in Billing Workspace →
-                    </a>
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                      Open the billing page, create a new plan with "Active: YES", then return here to refresh.
-                    </p>
-                  </div>
                 ) : (
                   <div className="space-y-3">
-                    {plans.map((plan) => (
+                    {PRICING_PLAN_CARDS.map((plan) => (
                       <label
-                        key={plan.id}
+                        key={plan.slug}
+                        onClick={() => setSelectedPlanSlug(plan.slug)}
                         className={cn(
                           "block rounded-xl border p-4 cursor-pointer transition-all duration-300 ease-out relative overflow-hidden group",
-                          selectedPlanId === plan.id
+                          selectedPlanSlug === plan.slug
                             ? "border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20 shadow-md ring-1 ring-indigo-600 -translate-y-1"
                             : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-indigo-300 dark:hover:border-indigo-700 hover:-translate-y-0.5 hover:shadow-sm",
                         )}
                       >
-                        {selectedPlanId === plan.id && (
+                        {selectedPlanSlug === plan.slug && (
                             <div className="absolute top-0 right-0 w-2 h-full bg-indigo-600 animate-in fade-in slide-in-from-top-full duration-300"></div>
                         )}
                         <div className="flex items-start justify-between gap-4">
@@ -866,21 +1078,24 @@ export default function OnboardingPage() {
                             <div className="flex items-center">
                                 <div className={cn(
                                     "flex items-center justify-center w-5 h-5 rounded-full border mr-3 transition-colors duration-200",
-                                    selectedPlanId === plan.id ? "border-indigo-600" : "border-slate-300 dark:border-slate-600 group-hover:border-indigo-400"
+                                    selectedPlanSlug === plan.slug ? "border-indigo-600" : "border-slate-300 dark:border-slate-600 group-hover:border-indigo-400"
                                 )}>
-                                    {selectedPlanId === plan.id && <div className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-in zoom-in duration-200" />}
+                                    {selectedPlanSlug === plan.slug && <div className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-in zoom-in duration-200" />}
                                 </div>
-                                <p className="font-bold text-slate-900 dark:text-white text-base">{plan.name}</p>
+                                <div>
+                                  <p className="font-bold text-slate-900 dark:text-white text-base">{plan.name}</p>
+                                  <p className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">{plan.badge}</p>
+                                </div>
                             </div>
+                            <p className="ml-8 mt-1 text-xs text-slate-600 dark:text-slate-400">{plan.description}</p>
                             <ul className="mt-2 text-xs text-slate-500 dark:text-slate-400 space-y-1 ml-8">
-                                <li>• Up to {plan.maxStudentsAllowed} students</li>
-                                <li>• {plan.maxStorageGb} GB Cloud Storage</li>
-                                <li>• {plan.hasWhiteLabelApp ? "Custom White-label App included" : "Standard Web Platform"}</li>
+                                {plan.features.map((feature) => (
+                                  <li key={`${plan.slug}-${feature}`}>• {feature}</li>
+                                ))}
                             </ul>
                           </div>
                           <div className="text-right">
-                            <p className="font-extrabold text-slate-900 dark:text-white text-lg">₹{String(plan.price)}</p>
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mt-1">{plan.billingCycle}</p>
+                            <p className="font-extrabold text-slate-900 dark:text-white text-lg">{plan.priceLabel}</p>
                           </div>
                         </div>
                       </label>
@@ -899,20 +1114,25 @@ export default function OnboardingPage() {
                     </button>
                     <button
                       type="submit"
-                      disabled={loading || loadingPlans || plans.length === 0 || !selectedPlanId}
+                      disabled={loading || loadingPlans || !selectedPlanSlug || !selectedBackendPlan?.id}
                       className="w-2/3 flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 dark:disabled:bg-indigo-800 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/20 active:scale-[0.98]"
                     >
                       {loading ? "Processing..." : "Proceed to Payment"}
                       {!loading && <ChevronRight className="ml-2 h-5 w-5" />}
                     </button>
                   </div>
-                  <div className="flex justify-center">
+
+                  <div className="flex justify-end">
                     <button
-                        type="button"
-                        onClick={handleSkipPayment}
-                        className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors py-2 px-4 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                      type="button"
+                      onClick={() => {
+                        setError(null);
+                        setSuccess("Temp skip enabled. Moved to Brand step.");
+                        setStep(4);
+                      }}
+                      className="inline-flex items-center text-xs font-semibold text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors"
                     >
-                        Skip payment for now &rarr;
+                      Temp Skip <ChevronRight className="ml-1 h-3.5 w-3.5" />
                     </button>
                   </div>
                 </div>
@@ -922,13 +1142,6 @@ export default function OnboardingPage() {
             {/* STEP 4: BRAND SETTINGS */}
             {step === 4 && (
               <div key="step4" className={stepAnimationClass}>
-                {skippedPayment && (
-                  <div className="rounded-lg border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm text-amber-800 dark:text-amber-300 flex items-center mb-6">
-                    <div className="w-2 h-2 rounded-full bg-amber-500 mr-2 animate-pulse"></div>
-                    Payment skipped. You can activate a subscription from your dashboard later.
-                  </div>
-                )}
-
                 <div className="space-y-5">
                   <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
                     <Palette className="h-5 w-5 text-indigo-500" />
@@ -1383,8 +1596,8 @@ export default function OnboardingPage() {
                     title="Payment & Plan"
                     onEdit={() => setStep(3)}
                     rows={[
-                      ["Selected Plan", selectedPlan ? `${selectedPlan.name} (${selectedPlan.billingCycle})` : "Skipped"],
-                      ["Status", createdTenant?.payment?.status || (skippedPayment ? "SKIPPED" : "PENDING")],
+                      ["Selected Plan", selectedPlan ? `${selectedPlan.name} (${selectedPlan.priceLabel})` : "Not selected"],
+                      ["Status", createdTenant?.payment?.status || "PENDING"],
                     ]}
                   />
 

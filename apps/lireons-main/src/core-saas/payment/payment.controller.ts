@@ -16,7 +16,6 @@ import { RazorpayService } from './razorpay.service';
 import { PaymentInitiateDto } from './dto/payment-initiate.dto';
 import { PaymentCallbackDto } from './dto/payment-callback.dto';
 
-@UseGuards(JwtAuthGuard)
 @Controller('core-saas/payments')
 export class PaymentController {
   constructor(
@@ -35,6 +34,7 @@ export class PaymentController {
   }
 
   @Post('initiate')
+  @UseGuards(JwtAuthGuard)
   async initiatePayment(
     @Body() payload: PaymentInitiateDto,
     @Request() req: { user: JwtAuthUser },
@@ -48,6 +48,7 @@ export class PaymentController {
   }
 
   @Post('callback')
+  @UseGuards(JwtAuthGuard)
   async handlePaymentCallback(
     @Body() payload: PaymentCallbackDto,
     @Headers('x-razorpay-signature') signature: string,
@@ -78,6 +79,7 @@ export class PaymentController {
   }
 
   @Get('status/:invoiceId')
+  @UseGuards(JwtAuthGuard)
   async getPaymentStatus(
     @Param('invoiceId') invoiceId: string,
     @Request() req: { user: JwtAuthUser },

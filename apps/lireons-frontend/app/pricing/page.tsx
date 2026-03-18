@@ -117,8 +117,8 @@ export default function PricingPage() {
             title="White-Label Enterprise"
             badge="For Large Institutions"
             description="Complete brand dominance with iOS and massive scale."
-            price="Custom"
-            period=""
+            price={isYearly ? "₹60,000" : "₹75,000"}
+            period={isYearly ? "/mo (billed yearly)" : "/month"}
             features={[
               "Unlimited Students",
               "Data in your own AWS account",
@@ -128,8 +128,8 @@ export default function PricingPage() {
               "On-premise deployment option",
               "Dedicated Account Manager"
             ]}
-            buttonText="Contact Sales"
-            onClick={() => router.push("/contact")}
+            buttonText="Start Enterprise Plan"
+            onClick={() => handleGetStarted("tier_enterprise")}
             featured={false}
           />
         </div>

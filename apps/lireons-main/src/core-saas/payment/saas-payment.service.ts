@@ -351,6 +351,7 @@ export class SaasPaymentService {
       currency: invoice.currency,
       transactionId: transaction.id,
       gateway: transaction.gateway,
+      keyId: this.razorpayService.getPublicKey(),
     };
   }
 
@@ -395,7 +396,7 @@ export class SaasPaymentService {
       where: { id: transaction.id },
       data: {
         status: payment.status === 'captured' || payment.status === 'authorized' ? 'SUCCESS' : 'FAILED',
-        gatewayPaymentId: razorpay_payment_id,
+        gatewayPaymentId: razorpay_order_id,
         amountPaid: new Prisma.Decimal(amountInRupees),
         processedAt: new Date(),
       },

@@ -84,7 +84,7 @@ RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
 
 **Frontend** (`apps/lireons-frontend/.env.local`):
 ```bash
-NEXT_PUBLIC_RAZORPAY_KEY=your_key_id
+RAZORPAY_KEY_ID=your_key_id
 NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
 ```
 
@@ -172,7 +172,7 @@ Use Razorpay test cards:
 ## 🛠️ Troubleshooting
 
 **Payment form not opening?**
-- Check `NEXT_PUBLIC_RAZORPAY_KEY` is set
+- Check `RAZORPAY_KEY_ID` is set
 - Verify Razorpay script loaded: Open DevTools → Network tab
 
 **Callback not working?**

@@ -31,6 +31,17 @@ export class RazorpayService {
     return this.razorpay;
   }
 
+  getPublicKey(): string {
+    const keyId = this.configService.get<string>('razorpay.keyId');
+    if (!keyId) {
+      throw new InternalServerErrorException(
+        'Razorpay key id is missing. Set RAZORPAY_KEY_ID.',
+      );
+    }
+
+    return keyId;
+  }
+
   async createOrder(
     amount: number,
     currency: string = 'INR',

@@ -5,7 +5,11 @@
   "main": "index.js",
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run start:dev --parallel",
+    "dev:clean": "for p in 3000 3001 3002 3003 4000 4002; do ids=$(lsof -tiTCP:$p -sTCP:LISTEN 2>/dev/null || true); if [ -n \"$ids\" ]; then kill -9 $ids; fi; done && pkill -f 'next dev' >/dev/null 2>&1 || true && pkill -f 'nest start --watch' >/dev/null 2>&1 || true && rm -f apps/lireons-frontend/.next/dev/lock",
+    "dev": "pnpm run dev:safe",
+    "dev:all": "pnpm run dev:clean && turbo run start:dev --parallel",
+    "dev:safe": "pnpm run dev:clean && pnpm --filter lireons-frontend run start:dev & pnpm --filter lireons-main run start:dev & pnpm --filter @lireons/academy-api run start:dev & wait",
+    "dev:workers": "pnpm --filter @lireons/media-worker run start:dev & pnpm --filter @lireons/code-runner-worker run start:dev & wait",
     "db:migrate": "dotenv -e apps/lireons-main/.env -- pnpm --filter @lireons/database exec prisma migrate dev",
     "docker:academy": "docker build -f Dockerfile.academy-api -t lireons-academy-api .",
     "docker:main": "docker build -f Dockerfile.lireons-main -t lireons-main .",

@@ -14,6 +14,7 @@ import { CreateTenantDto } from './dto/create-tenant.dto';
 import {
 	TenantConfigurationDto,
 } from './dto/tenant-configuration.dto';
+import { InvoiceListQueryDto } from './dto/invoice-list-query.dto';
 import {
 	UpdateTenantConfigurationDto,
 } from './dto/update-tenant-configuration.dto';
@@ -39,6 +40,16 @@ type DomainMeta = {
 	lastErrors?: string[];
 };
 
+type DefaultPlanSeed = {
+	slug: string;
+	name: string;
+	billingCycle: string;
+	price: number;
+	maxStudentsAllowed: number;
+	maxStorageGb: number;
+	hasWhiteLabelApp: boolean;
+};
+
 @Injectable()
 export class TenantService {
 	constructor(
@@ -56,6 +67,40 @@ export class TenantService {
 	]);
 
 	private readonly maxUploadBytes = 5 * 1024 * 1024;
+
+	private readonly defaultTenantPlans: DefaultPlanSeed[] = [
+		{
+			slug: 'tier_shared',
+			name: 'Shared Infrastructure',
+			billingCycle: 'MONTHLY',
+			price: 5000,
+			maxStudentsAllowed: 2000,
+			maxStorageGb: 200,
+			hasWhiteLabelApp: false,
+		},
+		{
+			slug: 'tier_dedicated',
+			name: 'Dedicated Cloud',
+			billingCycle: 'MONTHLY',
+			price: 25000,
+			maxStudentsAllowed: 50000,
+			maxStorageGb: 1000,
+			hasWhiteLabelApp: true,
+		},
+		{
+			slug: 'tier_enterprise',
+			name: 'White-Label Enterprise',
+			billingCycle: 'MONTHLY',
+			price: 75000,
+			maxStudentsAllowed: 200000,
+			maxStorageGb: 5000,
+			hasWhiteLabelApp: true,
+		},
+	];
+
+	private get defaultPlanSlugs(): string[] {
+		return this.defaultTenantPlans.map((plan) => plan.slug);
+	}
 
 	private validateImageFile(file: UploadImageFile) {
 		if (!file) {
@@ -80,11 +125,46 @@ export class TenantService {
 		return `organizations/${orgId}/${type}/${Date.now()}-${randomSuffix}${safeExt}`;
 	}
 
-	getActivePlans() {
-		return this.prisma.saasPlan.findMany({
-			where: { isActive: true },
+	private async ensureDefaultTenantPlans() {
+		for (const plan of this.defaultTenantPlans) {
+			await this.prisma.saasPlan.upsert({
+				where: { slug: plan.slug },
+				update: {
+					name: plan.name,
+					billingCycle: plan.billingCycle,
+					price: new Prisma.Decimal(plan.price),
+					maxStudentsAllowed: plan.maxStudentsAllowed,
+					maxStorageGb: plan.maxStorageGb,
+					hasWhiteLabelApp: plan.hasWhiteLabelApp,
+					isActive: true,
+				},
+				create: {
+					slug: plan.slug,
+					name: plan.name,
+					billingCycle: plan.billingCycle,
+					price: new Prisma.Decimal(plan.price),
+					maxStudentsAllowed: plan.maxStudentsAllowed,
+					maxStorageGb: plan.maxStorageGb,
+					hasWhiteLabelApp: plan.hasWhiteLabelApp,
+					isActive: true,
+				},
+			});
+		}
+	}
+
+	async getActivePlans() {
+		await this.ensureDefaultTenantPlans();
+
+		const plans = await this.prisma.saasPlan.findMany({
+			where: {
+				isActive: true,
+				slug: {
+					in: this.defaultPlanSlugs,
+				},
+			},
 			select: {
 				id: true,
+				slug: true,
 				name: true,
 				billingCycle: true,
 				price: true,
@@ -92,11 +172,82 @@ export class TenantService {
 				maxStorageGb: true,
 				hasWhiteLabelApp: true,
 			},
-			orderBy: [{ name: 'asc' }, { billingCycle: 'asc' }],
+			orderBy: [{ updatedAt: 'asc' }],
+		});
+
+		const order = new Map(
+			this.defaultPlanSlugs.map((slug, index) => [slug, index]),
+		);
+
+		return plans.sort((a, b) => {
+			const aOrder = order.get(a.slug ?? '') ?? Number.MAX_SAFE_INTEGER;
+			const bOrder = order.get(b.slug ?? '') ?? Number.MAX_SAFE_INTEGER;
+			return aOrder - bOrder;
 		});
 	}
 
-	create(createTenantDto: CreateTenantDto, ownerId: string) {
+	listOwnerInvoices(ownerId: string, query: InvoiceListQueryDto) {
+		return this.prisma.invoice.findMany({
+			where: {
+				ownerId,
+				status: query.status,
+			},
+			include: {
+				subscription: {
+					include: {
+						plan: {
+							select: {
+								id: true,
+								name: true,
+								billingCycle: true,
+								price: true,
+							},
+						},
+						tenant: {
+							select: {
+								id: true,
+								orgName: true,
+								subdomain: true,
+								status: true,
+							},
+						},
+					},
+				},
+				transaction: true,
+			},
+			orderBy: {
+				issuedAt: 'desc',
+			},
+		});
+	}
+
+	async getOwnerInvoiceById(ownerId: string, invoiceId: string) {
+		const invoice = await this.prisma.invoice.findFirst({
+			where: {
+				id: invoiceId,
+				ownerId,
+			},
+			include: {
+				subscription: {
+					include: {
+						plan: true,
+						tenant: true,
+					},
+				},
+				transaction: true,
+			},
+		});
+
+		if (!invoice) {
+			throw new NotFoundException('Invoice not found');
+		}
+
+		return invoice;
+	}
+
+	async create(createTenantDto: CreateTenantDto, ownerId: string) {
+		await this.ensureDefaultTenantPlans();
+
 		const { phone, billingAddress, taxId, planId, ...tenantData } =
 			createTenantDto;
 
@@ -183,11 +334,14 @@ export class TenantService {
 				where: {
 					id: planId,
 					isActive: true,
+					slug: {
+						in: this.defaultPlanSlugs,
+					},
 				},
 			});
 
 			if (!plan) {
-				throw new BadRequestException('Selected plan is invalid or inactive');
+				throw new BadRequestException('Selected plan is invalid. Please choose one of the 3 available plans.');
 			}
 
 			const existingSubscription = await tx.subscription.findUnique({
@@ -199,13 +353,37 @@ export class TenantService {
 				},
 			});
 
+			const now = new Date();
+			const currentPeriodEnd = new Date(now);
+			if (plan.billingCycle === 'YEARLY') {
+				currentPeriodEnd.setFullYear(currentPeriodEnd.getFullYear() + 1);
+			} else {
+				currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
+			}
+
+			const zeroAmount = new Prisma.Decimal(0);
+
 			if (existingSubscription) {
+				if (existingSubscription.planId !== plan.id) {
+					await tx.subscription.update({
+						where: { id: existingSubscription.id },
+						data: {
+							planId: plan.id,
+							currentPeriodStart: now,
+							currentPeriodEnd,
+						},
+					});
+				}
+
 				const latestInvoice = await tx.invoice.findFirst({
 					where: { subId: existingSubscription.id },
 					orderBy: { issuedAt: 'desc' },
 					select: {
 						id: true,
 						status: true,
+						subtotal: true,
+						taxAmount: true,
+						total: true,
 						transaction: {
 							select: {
 								id: true,
@@ -215,24 +393,85 @@ export class TenantService {
 					},
 				});
 
+				let invoiceId = latestInvoice?.id || null;
+				let transactionId = latestInvoice?.transaction?.id || null;
+				let paymentStatus = latestInvoice?.transaction?.status || 'PENDING';
+
+				if (!latestInvoice) {
+					const invoice = await tx.invoice.create({
+						data: {
+							subId: existingSubscription.id,
+							ownerId,
+							subtotal: plan.price,
+							taxAmount: zeroAmount,
+							total: plan.price,
+							currency: 'INR',
+							status: 'DRAFT',
+						},
+					});
+
+					const transaction = await tx.saasPaymentTransaction.create({
+						data: {
+							invoiceId: invoice.id,
+							gateway: 'RAZORPAY',
+							amountPaid: zeroAmount,
+							status: 'PENDING',
+						},
+					});
+
+					invoiceId = invoice.id;
+					transactionId = transaction.id;
+					paymentStatus = transaction.status;
+				} else if (latestInvoice.status !== 'PAID') {
+					const syncedInvoice = await tx.invoice.update({
+						where: { id: latestInvoice.id },
+						data: {
+							subtotal: plan.price,
+							taxAmount: zeroAmount,
+							total: plan.price,
+							currency: 'INR',
+							status: 'DRAFT',
+						},
+					});
+
+					invoiceId = syncedInvoice.id;
+
+					if (latestInvoice.transaction?.id) {
+						const syncedTransaction = await tx.saasPaymentTransaction.update({
+							where: { id: latestInvoice.transaction.id },
+							data: {
+								status: 'PENDING',
+								amountPaid: zeroAmount,
+							},
+						});
+
+						transactionId = syncedTransaction.id;
+						paymentStatus = syncedTransaction.status;
+					} else {
+						const transaction = await tx.saasPaymentTransaction.create({
+							data: {
+								invoiceId: latestInvoice.id,
+								gateway: 'RAZORPAY',
+								amountPaid: zeroAmount,
+								status: 'PENDING',
+							},
+						});
+
+						transactionId = transaction.id;
+						paymentStatus = transaction.status;
+					}
+				}
+
 				return {
 					tenant,
 					subscription: existingSubscription,
 					payment: {
-						status: latestInvoice?.transaction?.status || 'PENDING',
-						transactionId: latestInvoice?.transaction?.id || null,
-						invoiceId: latestInvoice?.id || null,
+						status: paymentStatus,
+						transactionId,
+						invoiceId,
 						reused: true,
 					},
 				};
-			}
-
-			const now = new Date();
-			const currentPeriodEnd = new Date(now);
-			if (plan.billingCycle === 'YEARLY') {
-				currentPeriodEnd.setFullYear(currentPeriodEnd.getFullYear() + 1);
-			} else {
-				currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
 			}
 
 			const trialEndsAt = new Date(now);
@@ -250,7 +489,6 @@ export class TenantService {
 				},
 			});
 
-			const zeroAmount = new Prisma.Decimal(0);
 			const invoice = await tx.invoice.create({
 				data: {
 					subId: subscription.id,
@@ -266,7 +504,7 @@ export class TenantService {
 			const transaction = await tx.saasPaymentTransaction.create({
 				data: {
 					invoiceId: invoice.id,
-					gateway: 'STRIPE',
+					gateway: 'RAZORPAY',
 					amountPaid: zeroAmount,
 					status: 'PENDING',
 				},

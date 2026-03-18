@@ -9,8 +9,45 @@ interface RazorpayPaymentFormProps {
   currency?: string;
   backendToken: string;
   apiBaseUrl?: string;
-  onSuccess?: (response: any) => void;
-  onError?: (error: any) => void;
+  onSuccess?: (response: unknown) => void;
+  onError?: (error: unknown) => void;
+}
+
+type PaymentInitiationResponse = {
+  orderId: string;
+  keyId?: string;
+};
+
+type RazorpayHandlerResponse = {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+};
+
+type RazorpayCheckoutOptions = {
+  key?: string;
+  amount: number;
+  currency: string;
+  order_id: string;
+  name: string;
+  description: string;
+  handler: (response: RazorpayHandlerResponse) => Promise<void>;
+  theme?: {
+    color?: string;
+  };
+  modal?: {
+    ondismiss?: () => void;
+  };
+};
+
+interface RazorpayCheckout {
+  open(): void;
+}
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayCheckoutOptions) => RazorpayCheckout;
+  }
 }
 
 export const RazorpayPaymentForm: React.FC<RazorpayPaymentFormProps> = ({
@@ -48,13 +85,15 @@ export const RazorpayPaymentForm: React.FC<RazorpayPaymentFormProps> = ({
       });
 
       if (!response.ok) {
-        throw new Error('Failed to initiate payment');
+        const data = await response.json().catch(() => null);
+        const message = data?.error?.message || data?.message || 'Failed to initiate payment';
+        throw new Error(Array.isArray(message) ? message.join(', ') : message);
       }
 
-      const paymentData = await response.json();
+      const paymentData = (await response.json()) as PaymentInitiationResponse;
       console.log('✅ Payment initiated, loading Razorpay...');
 
-      if (!(window as any).Razorpay) {
+      if (!window.Razorpay) {
         await new Promise<void>((resolve, reject) => {
           const existing = document.querySelector(
             'script[data-razorpay-checkout]'
@@ -82,13 +121,13 @@ export const RazorpayPaymentForm: React.FC<RazorpayPaymentFormProps> = ({
       }
 
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY,
+        key: paymentData.keyId || process.env.RAZORPAY_KEY_ID,
         amount: Math.round(amount * 100),
         currency,
         order_id: paymentData.orderId,
         name: 'Lireons',
         description: `Invoice payment - ${invoiceId}`,
-        handler: async (response: any) => {
+        handler: async (response: RazorpayHandlerResponse) => {
           try {
             console.log('💳 Payment received from Razorpay, verifying signature...');
             const verifyResponse = await fetch(
@@ -135,14 +174,12 @@ export const RazorpayPaymentForm: React.FC<RazorpayPaymentFormProps> = ({
         },
       };
 
-      interface RazorpayCheckout {
-        open(): void;
+      console.log('🎯 Opening Razorpay checkout...');
+      if (!window.Razorpay) {
+        throw new Error('Razorpay script is not loaded. Please refresh and try again.');
       }
 
-      console.log('🎯 Opening Razorpay checkout...');
-      const razorpayInstance: RazorpayCheckout = new (window as any).Razorpay(
-        options,
-      );
+      const razorpayInstance: RazorpayCheckout = new window.Razorpay(options);
       razorpayInstance.open();
     } catch (err) {
       console.error('❌ Payment initiation error:', err);

@@ -19,7 +19,7 @@ RAZORPAY_WEBHOOK_SECRET=whsec_test_123456789
 
 ### 2. **Frontend Razorpay Configuration** (`apps/lireons-frontend/.env`)
 ```
-NEXT_PUBLIC_RAZORPAY_KEY=rzp_test_1DP5ibUubEzDoj
+RAZORPAY_KEY_ID=rzp_test_1DP5ibUubEzDoj
 NEXT_PUBLIC_API_URL=http://localhost:4000
 ```
 
